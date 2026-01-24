@@ -1,0 +1,16 @@
+pandas
+gspread
+oauth2client
+python-dotenv
+streamlit>=1.28.0
+plotly
+openpyxl
+vnstock
+selenium
+beautifulsoup4
+webdriver-manager
+scikit-learn
+imbalanced-learn
+xgboost
+gspread_dataframe
+altair<5
