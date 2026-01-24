@@ -8,7 +8,8 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
-from vnstock import stock_historical_data
+from vnstock import Vnstock
+import time
 
 # Page config
 st.set_page_config(
@@ -16,6 +17,18 @@ st.set_page_config(
     page_icon="📈",
     layout="wide"
 )
+
+# Cached data fetching function with TTL (Time To Live)
+@st.cache_data(ttl=300)  # Cache for 5 minutes (300 seconds)
+def fetch_stock_data(symbol, start_date, end_date):
+    """Fetch stock data with caching to reduce API calls"""
+    stock = Vnstock().stock(symbol=symbol, source='VCI')
+    df = stock.quote.history(
+        start=start_date,
+        end=end_date,
+        interval='1D'
+    )
+    return df
 
 # Custom CSS
 st.markdown("""
@@ -36,6 +49,20 @@ st.markdown("""
 with st.sidebar:
     st.markdown("# 📈 Stock Analysis")
     st.markdown("**Phân Tích Chứng Khoán VN**")
+    st.markdown("---")
+    
+    # Auto-refresh settings
+    st.markdown("### ⚙️ Cài Đặt")
+    auto_refresh = st.checkbox("🔄 Auto-refresh", value=False, help="Tự động làm mới dữ liệu")
+    refresh_interval = st.slider(
+        "Refresh mỗi (phút)",
+        min_value=5,
+        max_value=30,
+        value=5,
+        step=5,
+        disabled=not auto_refresh
+    )
+    
     st.markdown("---")
     
     page = st.radio(
@@ -64,13 +91,12 @@ if page == "🏠 Dashboard":
             end_date = datetime.now()
             start_date = end_date - timedelta(days=days)
             
+            # Fetch data with caching
             with st.spinner(f"Đang tải dữ liệu {symbol}..."):
-                df = stock_historical_data(
+                df = fetch_stock_data(
                     symbol=symbol,
                     start_date=start_date.strftime("%Y-%m-%d"),
-                    end_date=end_date.strftime("%Y-%m-%d"),
-                    resolution="1D",
-                    type="stock"
+                    end_date=end_date.strftime("%Y-%m-%d")
                 )
             
             if df is not None and len(df) > 0:
@@ -138,6 +164,17 @@ if page == "🏠 Dashboard":
                 # Data table
                 with st.expander("📄 Xem dữ liệu chi tiết"):
                     st.dataframe(df.tail(20), use_container_width=True)
+                
+                # Auto-refresh countdown
+                if auto_refresh:
+                    refresh_placeholder = st.empty()
+                    for remaining in range(refresh_interval * 60, 0, -1):
+                        mins, secs = divmod(remaining, 60)
+                        refresh_placeholder.info(
+                            f"🔄 Tự động làm mới sau: {mins:02d}:{secs:02d}"
+                        )
+                        time.sleep(1)
+                    st.rerun()
             else:
                 st.error(f"❌ Không tìm thấy dữ liệu cho mã {symbol}")
                 

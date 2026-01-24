@@ -3,14 +3,46 @@ from vnstock import Vnstock
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime, timedelta
+import os
+import sys
+import json
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # ===== 1. Kết nối Google Sheets =====
-scope = ["https://spreadsheets.google.com/feeds",
-         "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+def get_google_credentials():
+    """Load Google credentials from environment or file"""
+    try:
+        # Try from environment variable first (for GitHub Actions)
+        if "GOOGLE_CREDENTIALS" in os.environ:
+            creds_dict = json.loads(os.environ["GOOGLE_CREDENTIALS"])
+            return ServiceAccountCredentials.from_json_keyfile_dict(
+                creds_dict,
+                ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+            )
+        # Fallback to credentials.json (for local)
+        elif os.path.exists("credentials.json"):
+            return ServiceAccountCredentials.from_json_keyfile_name(
+                "credentials.json",
+                ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+            )
+        else:
+            raise FileNotFoundError("No credentials found")
+    except Exception as e:
+        print(f"❌ Lỗi tải credentials: {e}")
+        sys.exit(1)
+
+creds = get_google_credentials()
 client = gspread.authorize(creds)
 
-spreadsheet = client.open("stockdata")
+# Open spreadsheet by ID (from env) or name
+spreadsheet_id = os.getenv("SPREADSHEET_ID")
+if spreadsheet_id:
+    spreadsheet = client.open_by_key(spreadsheet_id)
+else:
+    spreadsheet = client.open("stockdata")
 tickers_sheet = spreadsheet.worksheet("tickers")
 tickers = tickers_sheet.col_values(1)[1:]
 data_sheet = spreadsheet.worksheet("data")
