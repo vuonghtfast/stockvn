@@ -29,16 +29,40 @@ st.set_page_config(
 )
 
 # Cached data fetching function with TTL (Time To Live)
-@st.cache_data(ttl=300)  # Cache for 5 minutes (300 seconds)
+@st.cache_data(ttl=600)  # Cache for 10 minutes
 def fetch_stock_data(symbol, start_date, end_date):
-    """Fetch stock data with caching to reduce API calls"""
-    stock = Vnstock().stock(symbol=symbol, source='VCI')
-    df = stock.quote.history(
-        start=start_date,
-        end=end_date,
-        interval='1D'
-    )
-    return df
+    """Fetch stock data from Google Sheets (pre-loaded by GitHub Actions)"""
+    try:
+        spreadsheet = get_spreadsheet()
+        ws = spreadsheet.worksheet("price")
+        
+        # Get all data
+        data = ws.get_all_records()
+        df = pd.DataFrame(data)
+        
+        if df.empty:
+            st.warning(f"⚠️ Không có dữ liệu giá trong Google Sheets")
+            return pd.DataFrame()
+        
+        # Filter by ticker and date range
+        df = df[df['ticker'] == symbol].copy()
+        
+        if 'date' in df.columns:
+            df['date'] = pd.to_datetime(df['date'])
+            df = df[(df['date'] >= start_date) & (df['date'] <= end_date)]
+            df = df.sort_values('date')
+            df.set_index('date', inplace=True)
+        
+        # Ensure numeric columns
+        for col in ['open', 'high', 'low', 'close', 'volume']:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+        
+        return df
+    
+    except Exception as e:
+        st.error(f"❌ Lỗi đọc dữ liệu: {e}")
+        return pd.DataFrame()
 
 @st.cache_data(ttl=3600)  # Finance data is daily, cache for 1 hour
 def fetch_financial_sheet(sheet_name):
