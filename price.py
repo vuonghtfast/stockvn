@@ -133,7 +133,8 @@ for idx, ticker in enumerate(tickers, 1):
         status_msg = f"[{idx}/{len(tickers)}] {ticker}..."
         print(status_msg, end=" ", flush=True)
         
-        df = vs.stock(symbol=ticker, source='TCBS').quote.history(
+        # Use VCI provider instead of deprecated TCBS
+        df = vs.stock(symbol=ticker, source='VCI').quote.history(
             start=start_date,
             end=end_date,
             interval=args.interval
