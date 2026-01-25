@@ -175,15 +175,24 @@ def calculate_financial_metrics(symbol):
     
     return metrics
 
+@st.cache_resource
 def get_gspread_client():
-    """Get authenticated gspread client"""
+    """Get authenticated gspread client (cached)"""
     creds = get_google_credentials()
     return gspread.authorize(creds)
 
+@st.cache_resource
 def get_spreadsheet():
-    """Get the target spreadsheet"""
+    """Get the target spreadsheet (cached)"""
     client = get_gspread_client()
-    spreadsheet_id = os.getenv("SPREADSHEET_ID")
+    
+    # Try Streamlit secrets first
+    spreadsheet_id = None
+    if hasattr(st, 'secrets') and 'SPREADSHEET_ID' in st.secrets:
+        spreadsheet_id = st.secrets['SPREADSHEET_ID']
+    elif 'SPREADSHEET_ID' in os.environ:
+        spreadsheet_id = os.getenv("SPREADSHEET_ID")
+    
     if spreadsheet_id:
         return client.open_by_key(spreadsheet_id)
     return client.open("stockdata")
