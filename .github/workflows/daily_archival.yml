@@ -1,0 +1,39 @@
+name: Daily Data Archival
+
+on:
+  schedule:
+    # Chạy mỗi ngày lúc 23:00 ICT (16:00 UTC) - sau giờ đóng cửa
+    - cron: '0 16 * * 1-5'
+  workflow_dispatch:  # Cho phép chạy thủ công
+
+jobs:
+  archive-data:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install pandas gspread oauth2client python-dotenv
+      
+      - name: Run data archiver
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+        run: |
+          python data_archiver.py
+      
+      - name: Upload SQLite database
+        uses: actions/upload-artifact@v3
+        with:
+          name: stockvn-database
+          path: data/stockvn.db
+          retention-days: 90

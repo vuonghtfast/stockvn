@@ -1,9 +1,9 @@
 name: Update Stock Prices
 on:
   schedule:
-    # Chạy mỗi 5 phút trong giờ giao dịch (9:00-15:00, Thứ 2-6)
+    # Chạy mỗi 10 phút trong giờ giao dịch (9:00-15:00, Thứ 2-6)
     # UTC+7 -> UTC: 9:00 = 2:00, 15:00 = 8:00
-    - cron: '*/5 2-8 * * 1-5'
+    - cron: '*/10 2-8 * * 1-5'
   workflow_dispatch:  # Cho phép chạy thủ công
 
 jobs:

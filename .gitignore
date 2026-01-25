@@ -31,6 +31,14 @@ credentials.json
 data/*.csv
 data/*.xlsx
 
+# Database files
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+*.sqlite
+*.sqlite3
+
 # Logs
 *.log
 
