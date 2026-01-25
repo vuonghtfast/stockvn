@@ -199,11 +199,16 @@ def get_spreadsheet():
     """Get the target spreadsheet (cached)"""
     client = get_gspread_client()
     
-    # Try Streamlit secrets first
+    # Try Streamlit secrets first (with safe check)
     spreadsheet_id = None
-    if hasattr(st, 'secrets') and 'SPREADSHEET_ID' in st.secrets:
-        spreadsheet_id = st.secrets['SPREADSHEET_ID']
-    elif 'SPREADSHEET_ID' in os.environ:
+    try:
+        if hasattr(st, 'secrets') and 'SPREADSHEET_ID' in st.secrets:
+            spreadsheet_id = st.secrets['SPREADSHEET_ID']
+    except:
+        pass  # Secrets not available, will try env
+    
+    # Fallback to environment variable
+    if not spreadsheet_id and 'SPREADSHEET_ID' in os.environ:
         spreadsheet_id = os.getenv("SPREADSHEET_ID")
     
     if spreadsheet_id:
