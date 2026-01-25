@@ -114,7 +114,15 @@ except gspread.WorksheetNotFound:
     print("[OK] Created sheet 'price'")
 
 # ===== 2. Lấy dữ liệu từ vnstock =====
-vs = Vnstock()
+# Initialize vnstock with API key if available
+api_key = os.getenv("VNSTOCK_API_KEY")
+if api_key:
+    vs = Vnstock(api_key=api_key)
+    print("[INFO] Using vnstock with API key (60 req/min)")
+else:
+    vs = Vnstock()
+    print("[WARN] Using vnstock without API key (20 req/min). Register at https://vnstocks.com/login")
+
 all_data = []
 
 print(f"\n[START] Fetching data...")

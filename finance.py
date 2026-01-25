@@ -1,10 +1,18 @@
 import vnstock as vs
+from vnstock import Vnstock
 import pandas as pd
 import gspread
 import os
 from oauth2client.service_account import ServiceAccountCredentials
 import sys 
 import numpy as np 
+
+# Initialize vnstock with API key if available
+api_key = os.getenv("VNSTOCK_API_KEY")
+if api_key:
+    print("[INFO] Using vnstock with API key (60 req/min)")
+else:
+    print("[WARN] Using vnstock without API key (20 req/min). Register at https://vnstocks.com/login")
 
 # 1. Auth Google Sheets (Không thay đổi)
 try:
@@ -33,7 +41,11 @@ except Exception as e:
 def fetch_financials(symbol, period="quarter"):
     data = {}
     try:
-        comp = vs.Company(symbol=symbol, source="TCBS")
+        # Use API key if available
+        if api_key:
+            comp = vs.Company(symbol=symbol, source="TCBS", api_key=api_key)
+        else:
+            comp = vs.Company(symbol=symbol, source="TCBS")
         
         data["income"] = comp.finance.income_statement(period=period)
         data["balance"] = comp.finance.balance_sheet(period=period)

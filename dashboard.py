@@ -16,6 +16,7 @@ import os
 from config import get_google_credentials, get_config, update_config
 import time
 import warnings
+from sectors import get_sector, get_all_sectors
 
 # Suppress Streamlit secrets warning for local development
 warnings.filterwarnings('ignore', category=UserWarning, module='streamlit')
@@ -49,9 +50,7 @@ def fetch_financial_sheet(sheet_name):
         df = pd.DataFrame(data)
         
         if df.empty:
-            st.warning(f"⚠️ Sheet '{sheet_name}' tồn tại nhưng không có dữ liệu")
-        else:
-            st.success(f"✅ Đọc được {len(df)} records từ sheet '{sheet_name}'")
+            st.warning(f"⚠️ Sheet '{sheet_name}' không có dữ liệu")
         
         return df
     except Exception as e:
@@ -62,15 +61,28 @@ def fetch_financial_sheet(sheet_name):
 
 @st.cache_data(ttl=3600)
 def fetch_ticker_list():
-    """Fetch list of tickers from Google Sheets"""
+    """Fetch list of tickers from Google Sheets with sector info"""
     try:
         spreadsheet = get_spreadsheet()
         ws = spreadsheet.worksheet("tickers")
         tickers = ws.col_values(1)[1:]  # Skip header
-        return [t.strip().upper() for t in tickers if t.strip()]
+        tickers = [t.strip().upper() for t in tickers if t.strip()]
+        
+        # Add sector information
+        df = pd.DataFrame({
+            'ticker': tickers,
+            'sector': [get_sector(t) for t in tickers]
+        })
+        
+        return df
     except Exception as e:
         st.error(f"⚠️ Lỗi đọc danh sách mã: {e}")
-        return ["VNM", "HPG", "VIC"]  # Default fallback
+        # Return default fallback with sectors
+        default_tickers = ["VNM", "HPG", "VIC"]
+        return pd.DataFrame({
+            'ticker': default_tickers,
+            'sector': [get_sector(t) for t in default_tickers]
+        })
 
 def calculate_financial_metrics(symbol):
     """Calculate key financial metrics for a stock"""
