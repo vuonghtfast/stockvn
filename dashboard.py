@@ -15,6 +15,10 @@ import json
 import os
 from config import get_google_credentials, get_config, update_config
 import time
+import warnings
+
+# Suppress Streamlit secrets warning for local development
+warnings.filterwarnings('ignore', category=UserWarning, module='streamlit')
 
 # Page config
 st.set_page_config(
