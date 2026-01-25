@@ -27,12 +27,18 @@ def get_google_credentials():
         try:
             import streamlit as st
             if hasattr(st, 'secrets') and 'GOOGLE_CREDENTIALS' in st.secrets:
-                creds_dict = json.loads(st.secrets['GOOGLE_CREDENTIALS'])
+                # Streamlit secrets stores as string, need to parse JSON
+                creds_json = st.secrets['GOOGLE_CREDENTIALS']
+                if isinstance(creds_json, str):
+                    creds_dict = json.loads(creds_json)
+                else:
+                    creds_dict = dict(creds_json)
+                
                 return ServiceAccountCredentials.from_json_keyfile_dict(
                     creds_dict,
                     ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
                 )
-        except (ImportError, AttributeError, KeyError):
+        except (ImportError, AttributeError, KeyError) as e:
             pass  # Streamlit not available or secrets not configured
         
         # Try environment variable (for GitHub Actions)
