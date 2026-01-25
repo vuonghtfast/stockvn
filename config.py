@@ -21,24 +21,40 @@ _cache_timestamp = None
 CACHE_TTL_SECONDS = 300  # 5 minutes
 
 def get_google_credentials():
-    """Load Google credentials from environment or file"""
+    """Load Google credentials from Streamlit secrets, environment, or file"""
     try:
+        # Try Streamlit secrets first (for Streamlit Cloud)
+        try:
+            import streamlit as st
+            if hasattr(st, 'secrets') and 'GOOGLE_CREDENTIALS' in st.secrets:
+                creds_dict = json.loads(st.secrets['GOOGLE_CREDENTIALS'])
+                return ServiceAccountCredentials.from_json_keyfile_dict(
+                    creds_dict,
+                    ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+                )
+        except (ImportError, AttributeError, KeyError):
+            pass  # Streamlit not available or secrets not configured
+        
+        # Try environment variable (for GitHub Actions)
         if "GOOGLE_CREDENTIALS" in os.environ:
             creds_dict = json.loads(os.environ["GOOGLE_CREDENTIALS"])
             return ServiceAccountCredentials.from_json_keyfile_dict(
                 creds_dict,
                 ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
             )
-        elif os.path.exists("credentials.json"):
+        
+        # Fallback to credentials.json (for local development)
+        if os.path.exists("credentials.json"):
             return ServiceAccountCredentials.from_json_keyfile_name(
                 "credentials.json",
                 ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
             )
-        else:
-            raise FileNotFoundError("No credentials found")
+        
+        raise FileNotFoundError("No credentials found. Please add credentials.json or configure secrets.")
+    
     except Exception as e:
-        print(f"❌ Lỗi tải credentials: {e}")
-        sys.exit(1)
+        print(f"❌ Error loading credentials: {e}")
+        raise
 
 def get_config(key=None, default=None):
     """

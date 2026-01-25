@@ -42,9 +42,18 @@ def fetch_financial_sheet(sheet_name):
         spreadsheet = get_spreadsheet()
         ws = spreadsheet.worksheet(sheet_name)
         data = ws.get_all_records()
-        return pd.DataFrame(data)
+        df = pd.DataFrame(data)
+        
+        if df.empty:
+            st.warning(f"⚠️ Sheet '{sheet_name}' tồn tại nhưng không có dữ liệu")
+        else:
+            st.success(f"✅ Đọc được {len(df)} records từ sheet '{sheet_name}'")
+        
+        return df
     except Exception as e:
-        st.error(f"⚠️ Lỗi đọc sheet {sheet_name}: {e}")
+        st.error(f"❌ Lỗi đọc sheet '{sheet_name}': {e}")
+        import traceback
+        st.code(traceback.format_exc())
         return pd.DataFrame()
 
 @st.cache_data(ttl=3600)
