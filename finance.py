@@ -41,11 +41,8 @@ except Exception as e:
 def fetch_financials(symbol, period="quarter"):
     data = {}
     try:
-        # Use API key if available
-        if api_key:
-            comp = vs.Company(symbol=symbol, source="TCBS", api_key=api_key)
-        else:
-            comp = vs.Company(symbol=symbol, source="TCBS")
+        # vnstock reads API key from VNSTOCK_API_KEY environment variable automatically
+        comp = vs.Company(symbol=symbol, source="TCBS")
         
         data["income"] = comp.finance.income_statement(period=period)
         data["balance"] = comp.finance.balance_sheet(period=period)
