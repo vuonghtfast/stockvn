@@ -5,7 +5,8 @@ import gspread
 import os
 from oauth2client.service_account import ServiceAccountCredentials
 import sys 
-import numpy as np 
+import numpy as np
+from cleanup_helper import cleanup_removed_tickers 
 
 # Initialize vnstock with API key if available
 api_key = os.getenv("VNSTOCK_API_KEY")
@@ -74,6 +75,9 @@ def write_to_sheet(sheet_name, df):
     ws.clear()
     ws.update([df.columns.values.tolist()] + df.astype(str).values.tolist(), range_name='A1')
     print(f"✅ Ghi {sheet_name} xong ({len(df)} dòng)")
+
+# ===== Cleanup removed tickers =====
+cleanup_removed_tickers(spreadsheet, tickers, ['income', 'balance', 'cashflow'])
 
 # 5. Tạo summary (YOY hoặc QOQ growth) - ĐÃ SỬA LỖI TypeError VÀ THIẾU CỘT
 def create_summary(period="year"):

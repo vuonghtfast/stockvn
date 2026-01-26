@@ -8,6 +8,7 @@ import sys
 import json
 import argparse
 from dotenv import load_dotenv
+from cleanup_helper import cleanup_removed_tickers
 
 # Load environment variables
 load_dotenv()
@@ -113,7 +114,10 @@ except gspread.WorksheetNotFound:
     price_sheet = spreadsheet.add_worksheet(title="price", rows="50000", cols="15")
     print("[OK] Created sheet 'price'")
 
-# ===== 2. Lấy dữ liệu từ vnstock =====
+# ===== Cleanup removed tickers =====
+cleanup_removed_tickers(spreadsheet, tickers, ['price', 'price_history'])
+
+# ===== Main Logic =====dữ liệu từ vnstock =====
 # Set API key as environment variable (vnstock reads from env)
 api_key = os.getenv("VNSTOCK_API_KEY")
 if api_key:
