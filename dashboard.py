@@ -4,15 +4,10 @@ Stock Analysis Dashboard
 Phân tích chứng khoán Việt Nam
 """
 
-# Fix Windows encoding issues
-import sys
-import io
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
-
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+import sys
 from datetime import datetime, timedelta
 from vnstock import Vnstock
 import gspread
@@ -298,8 +293,11 @@ def get_money_flow_data():
         st.error(f"Lỗi khi lấy dữ liệu dòng tiền: {e}")
         return pd.DataFrame()
 
-# ===== Tab Render Functions =====
-def render_money_flow_tab():
+
+# ===== Tab Render Functions are imported from dashboard_tabs.py =====
+# See line 23: from dashboard_tabs import render_money_flow_tab, render_financial_screening_tab, render_watchlist_tab
+
+
     """Render tab Dòng Tiền"""
     st.markdown('<div class="main-header">💰 Dòng Tiền & Định Giá</div>', unsafe_allow_html=True)
     
