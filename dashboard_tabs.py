@@ -76,14 +76,14 @@ def render_money_flow_tab():
                     )
                     
                     if result.returncode == 0:
-                        st.success("✅ Cào dữ liệu thành công!")
+                        st.success("[OK] Cào dữ liệu thành công!")
                         st.rerun()
                     else:
-                        st.error(f"❌ Lỗi: {result.stderr}")
+                        st.error(f"[ERROR] Lỗi: {result.stderr}")
                 except subprocess.TimeoutExpired:
-                    st.error("❌ Timeout sau 5 phút")
+                    st.error("[ERROR] Timeout sau 5 phút")
                 except Exception as e:
-                    st.error(f"❌ Lỗi: {e}")
+                    st.error(f"[ERROR] Lỗi: {e}")
     
     with col_btn2:
         if st.button("📅 Lịch Sử 30 Ngày", use_container_width=True):
@@ -98,12 +98,12 @@ def render_money_flow_tab():
                     )
                     
                     if result.returncode == 0:
-                        st.success("✅ Cào dữ liệu lịch sử thành công!")
+                        st.success("[OK] Cào dữ liệu lịch sử thành công!")
                         st.rerun()
                     else:
-                        st.error(f"❌ Lỗi: {result.stderr}")
+                        st.error(f"[ERROR] Lỗi: {result.stderr}")
                 except Exception as e:
-                    st.error(f"❌ Lỗi: {e}")
+                    st.error(f"[ERROR] Lỗi: {e}")
     
     with col_btn3:
         st.info(f"🕒 Cập nhật lần cuối: {datetime.now().strftime('%H:%M:%S')}")
