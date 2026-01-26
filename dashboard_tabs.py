@@ -233,18 +233,34 @@ def render_money_flow_tab():
     
     st.markdown("### 📈 Phân Tích Định Giá (P/E vs P/B)")
     
-    # Scatter plot
-    fig_scatter = px.scatter(
-        latest_df,
-        x='pe_ratio',
-        y='pb_ratio',
-        color='sector',
-        size='money_flow_normalized',
-        hover_data=['ticker', 'money_flow_normalized'],
-        title="Phân Tích Định Giá Theo Ngành"
-    )
-    fig_scatter.update_layout(height=500)
-    st.plotly_chart(fig_scatter, use_container_width=True)
+    # Scatter plot with error handling
+    try:
+        # Filter out invalid data for scatter plot
+        scatter_df = latest_df[
+            (latest_df['pe_ratio'].notna()) & 
+            (latest_df['pb_ratio'].notna()) & 
+            (latest_df['money_flow_normalized'].notna()) &
+            (latest_df['pe_ratio'] > 0) &
+            (latest_df['pb_ratio'] > 0) &
+            (latest_df['money_flow_normalized'] > 0)
+        ].copy()
+        
+        if not scatter_df.empty:
+            fig_scatter = px.scatter(
+                scatter_df,
+                x='pe_ratio',
+                y='pb_ratio',
+                color='sector',
+                size='money_flow_normalized',
+                hover_data=['ticker', 'money_flow_normalized'],
+                title="Phân Tích Định Giá Theo Ngành"
+            )
+            fig_scatter.update_layout(height=500)
+            st.plotly_chart(fig_scatter, use_container_width=True)
+        else:
+            st.info("Không đủ dữ liệu hợp lệ để hiển thị biểu đồ phân tích định giá")
+    except Exception as e:
+        st.error(f"Lỗi khi tạo biểu đồ: {e}")
 
 def render_financial_screening_tab():
     """Render tab Lọc Cổ Phiếu"""
