@@ -4,10 +4,15 @@ Stock Analysis Dashboard
 Phân tích chứng khoán Việt Nam
 """
 
+# Fix Windows encoding issues
+import sys
+import io
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-import sys
 from datetime import datetime, timedelta
 from vnstock import Vnstock
 import gspread
