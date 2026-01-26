@@ -1,0 +1,27 @@
+name: Cleanup Intraday Data
+on:
+  schedule:
+    # 15:00 ICT = 8:00 UTC (sau khi kết thúc giao dịch lúc 14:45)
+    - cron: '0 8 * * 1-5'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      
+      - name: Run cleanup
+        run: python money_flow.py --cleanup
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}

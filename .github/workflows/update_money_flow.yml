@@ -1,0 +1,33 @@
+name: Update Money Flow
+on:
+  schedule:
+    # Sáng: 9:30-11:30 ICT = 2:30-4:30 UTC (mỗi 15 phút: 30, 45, 00, 15)
+    - cron: '30,45 2 * * 1-5'  # 9:30, 9:45 ICT
+    - cron: '0,15,30,45 3 * * 1-5'  # 10:00, 10:15, 10:30, 10:45 ICT
+    - cron: '0,15,30 4 * * 1-5'  # 11:00, 11:15, 11:30 ICT
+    # Chiều: 13:30-14:45 ICT = 6:30-7:45 UTC (mỗi 15 phút)
+    - cron: '30,45 6 * * 1-5'  # 13:30, 13:45 ICT
+    - cron: '0,15,30,45 7 * * 1-5'  # 14:00, 14:15, 14:30, 14:45 ICT
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  update-flow:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      
+      - name: Run money flow tracker
+        run: python money_flow.py --interval 15
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          VNSTOCK_API_KEY: ${{ secrets.VNSTOCK_API_KEY }}

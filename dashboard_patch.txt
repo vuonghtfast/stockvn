@@ -1,0 +1,104 @@
+# Patch for dashboard.py - Insert this code at line 815 (before "elif page == "🌐 Khuyến Nghị":")
+
+elif page == "💸 Dòng Tiền":
+    st.markdown('<div class="main-header">💰 Dòng Tiền & Định Giá</div>', unsafe_allow_html=True)
+    st.info("🚧 Tính năng đang phát triển. Chạy `streamlit run dashboard_new.py` để xem demo đầy đủ.")
+    
+    st.markdown("""
+    ### 📊 Tính năng Dòng Tiền
+    
+    **Hiện có:**
+    - Top 3 ngành có dòng tiền mạnh nhất
+    - Top 5 cổ phiếu có dòng tiền mạnh nhất  
+    - Phân tích định giá (P/E, P/B, P/S)
+    - Bộ lọc nâng cao
+    - Scatter plot định giá
+    
+    **Cách sử dụng:**
+    ```bash
+    # Thu thập dữ liệu hiện tại
+    python money_flow.py --interval 15
+    
+    # Thu thập dữ liệu lịch sử
+    python historical_money_flow.py --days 30
+    ```
+    
+    **Xem demo:** `streamlit run dashboard_new.py`
+    """)
+
+elif page == "🔍 Lọc Cổ Phiếu":
+    st.markdown('<div class="main-header">🔍 Lọc Cổ Phiếu Chất Lượng</div>', unsafe_allow_html=True)
+    st.info("🚧 Tính năng đang phát triển. Chạy `streamlit run dashboard_new.py` để xem demo đầy đủ.")
+    
+    st.markdown("""
+    ### 📊 Hệ Thống 10 Chỉ Tiêu Tài Chính
+    
+    **1. 💰 Khả năng sinh lời (30 điểm)**
+    - ROE ≥ 15% (xuất sắc: ≥20%)
+    - ROA ≥ 5% (xuất sắc: ≥10%)
+    - Profit Margin ≥ 10%
+    
+    **2. 📊 Định giá (20 điểm)**
+    - P/E: 10-20 (tùy ngành)
+    - P/B < 3 (xuất sắc: <1.5)
+    - P/S < 2
+    
+    **3. 📈 Tăng trưởng (20 điểm)**
+    - EPS Growth ≥ 10% YoY (xuất sắc: ≥15%)
+    - Revenue Growth ≥ 10% YoY (xuất sắc: ≥20%)
+    
+    **4. 🏥 Sức khỏe tài chính (20 điểm)**
+    - Debt/Equity < 1.0
+    - Current Ratio ≥ 1.5 (xuất sắc: ≥2.0)
+    
+    **5. 💵 Lợi ích cổ đông (10 điểm)**
+    - Dividend Yield ≥ 3% (xuất sắc: ≥5%)
+    
+    **Composite Score:** Tự động tính 0-100 điểm
+    
+    **Cách sử dụng:**
+    ```bash
+    # CLI
+    python financial_screening.py --min-roe 15 --max-pe 20
+    
+    # Dashboard
+    streamlit run dashboard_new.py
+    ```
+    """)
+
+elif page == "📋 Danh Sách Theo Dõi":
+    st.markdown('<div class="main-header">📋 Danh Sách Theo Dõi</div>', unsafe_allow_html=True)
+    st.info("🚧 Tính năng đang phát triển. Chạy `streamlit run dashboard_new.py` để xem demo đầy đủ.")
+    
+    st.markdown("""
+    ### 📝 Quản Lý Watchlist
+    
+    **2 loại watchlist:**
+    
+    **💰 Watchlist Dòng Tiền**
+    - Theo dõi các mã có dòng tiền mạnh
+    - Auto-update avg flow 7 ngày
+    - Lưu vào Google Sheets: `watchlist_flow`
+    
+    **📊 Watchlist Cơ Bản**  
+    - Theo dõi các mã có chỉ số tài chính tốt
+    - Auto-update ROE, ROA, EPS, Dividend Yield
+    - Lưu vào Google Sheets: `watchlist_fundamental`
+    
+    **Tính năng:**
+    - ➕ Thêm/xóa mã
+    - 🔄 Cập nhật metrics tự động
+    - 📥 Xuất CSV
+    - 📊 Hiển thị bảng với styling
+    
+    **Cách sử dụng:**
+    ```bash
+    # CLI
+    python watchlist.py --add VNM --type flow
+    python watchlist.py --list --type flow
+    python watchlist.py --update --type flow
+    
+    # Dashboard
+    streamlit run dashboard_new.py
+    ```
+    """)

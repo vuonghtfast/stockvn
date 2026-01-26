@@ -1,0 +1,57 @@
+# -*- coding: utf-8 -*-
+"""
+Enhanced Stock Analysis Dashboard
+Dashboard với các tính năng mới: Money Flow, Financial Screening, Watchlist
+"""
+
+import streamlit as st
+import sys
+import os
+
+# Add current directory to path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# Import dashboard tabs
+from dashboard_tabs import render_money_flow_tab, render_financial_screening_tab, render_watchlist_tab
+
+# Page config
+st.set_page_config(
+    page_title="Stock Analysis Dashboard",
+    page_icon="📈",
+    layout="wide"
+)
+
+# Custom CSS
+st.markdown("""
+<style>
+    .main-header {
+        font-size: 2.5rem;
+        font-weight: bold;
+        background: linear-gradient(90deg, #1f77b4, #2ca02c);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Sidebar
+with st.sidebar:
+    st.markdown("# 📈 Stock Analysis")
+    st.markdown("**Phân Tích Chứng Khoán VN**")
+    st.markdown("---")
+    
+    page = st.radio(
+        "📍 Navigation",
+        ["💸 Dòng Tiền", "🔍 Lọc Cổ Phiếu", "📋 Danh Sách Theo Dõi"],
+        label_visibility="collapsed"
+    )
+
+# Main content
+if page == "💸 Dòng Tiền":
+    render_money_flow_tab()
+elif page == "🔍 Lọc Cổ Phiếu":
+    render_financial_screening_tab()
+elif page == "📋 Danh Sách Theo Dõi":
+    render_watchlist_tab()
