@@ -7,6 +7,7 @@ Phân tích chứng khoán Việt Nam
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+import sys
 from datetime import datetime, timedelta
 from vnstock import Vnstock
 import gspread

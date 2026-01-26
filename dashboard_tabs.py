@@ -14,6 +14,9 @@ import gspread
 from sectors import get_sector, get_all_sectors
 from watchlist import add_to_watchlist, get_watchlist, update_watchlist_metrics
 from financial_screening import calculate_all_metrics, screen_by_criteria, calculate_composite_score
+import subprocess
+import sys
+import os
 
 @st.cache_data(ttl=300)  # Cache 5 minutes
 def get_money_flow_data():
@@ -52,8 +55,60 @@ def get_money_flow_data():
         return pd.DataFrame()
 
 def render_money_flow_tab():
-    """Render tab Dòng Tiền"""
-    st.markdown('<div class="main-header">💰 Dòng Tiền & Định Giá</div>', unsafe_allow_html=True)
+    """Render Money Flow Analysis tab"""
+    
+    st.markdown("### 💸 Phân Tích Dòng Tiền")
+    
+    # Manual fetch button
+    col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 2])
+    
+    with col_btn1:
+        if st.button("🔄 Cào Dữ Liệu Ngay", use_container_width=True, type="primary"):
+            with st.spinner("🔄 Đang cào dữ liệu dòng tiền..."):
+                try:
+                    # Run money_flow.py
+                    result = subprocess.run(
+                        [sys.executable, 'money_flow.py', '--interval', '15'],
+                        capture_output=True,
+                        text=True,
+                        timeout=300,
+                        cwd='e:/Cao Phi/Code/stockvn'
+                    )
+                    
+                    if result.returncode == 0:
+                        st.success("✅ Cào dữ liệu thành công!")
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Lỗi: {result.stderr}")
+                except subprocess.TimeoutExpired:
+                    st.error("❌ Timeout sau 5 phút")
+                except Exception as e:
+                    st.error(f"❌ Lỗi: {e}")
+    
+    with col_btn2:
+        if st.button("📅 Lịch Sử 30 Ngày", use_container_width=True):
+            with st.spinner("🔄 Đang cào dữ liệu lịch sử..."):
+                try:
+                    result = subprocess.run(
+                        [sys.executable, 'historical_money_flow.py', '--days', '30'],
+                        capture_output=True,
+                        text=True,
+                        timeout=600,
+                        cwd='e:/Cao Phi/Code/stockvn'
+                    )
+                    
+                    if result.returncode == 0:
+                        st.success("✅ Cào dữ liệu lịch sử thành công!")
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Lỗi: {result.stderr}")
+                except Exception as e:
+                    st.error(f"❌ Lỗi: {e}")
+    
+    with col_btn3:
+        st.info(f"🕒 Cập nhật lần cuối: {datetime.now().strftime('%H:%M:%S')}")
+    
+    st.markdown("---")
     
     # Lấy dữ liệu
     with st.spinner("Đang tải dữ liệu dòng tiền..."):
