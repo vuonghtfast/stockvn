@@ -32,7 +32,7 @@ jobs:
           python data_archiver.py
       
       - name: Upload SQLite database
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: stockvn-database
           path: data/stockvn.db
