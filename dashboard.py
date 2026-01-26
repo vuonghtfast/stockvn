@@ -701,9 +701,9 @@ if page == "🏠 Dashboard":
                         f"{change:+,.0f} ({change_pct:+.2f}%)"
                     )
                 with col2:
-                    st.metric("Cao nhất", f"{latest[\'high\']:,.2f}")
+                    st.metric("Cao nhất", f"{latest['high']:,.2f}")
                 with col3:
-                    st.metric("Thấp nhất", f"{latest[\'low\']:,.2f}")
+                    st.metric("Thấp nhất", f"{latest['low']:,.2f}")
                 with col4:
                     st.metric("Khối lượng", f"{latest['volume']:,.0f}")
                 
