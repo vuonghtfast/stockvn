@@ -21,46 +21,47 @@ _cache_timestamp = None
 CACHE_TTL_SECONDS = 300  # 5 minutes
 
 def get_google_credentials():
-    """Load Google credentials from Streamlit secrets, environment, or file"""
-    try:
-        # Try Streamlit secrets first (for Streamlit Cloud)
+    """Load Google credentials from environment, Streamlit secrets, or file"""
+    
+    # Try environment variable FIRST (for GitHub Actions)
+    if "GOOGLE_CREDENTIALS" in os.environ:
         try:
-            import streamlit as st
-            if hasattr(st, 'secrets') and 'GOOGLE_CREDENTIALS' in st.secrets:
-                # Streamlit secrets stores as string, need to parse JSON
-                creds_json = st.secrets['GOOGLE_CREDENTIALS']
-                if isinstance(creds_json, str):
-                    creds_dict = json.loads(creds_json)
-                else:
-                    creds_dict = dict(creds_json)
-                
-                return ServiceAccountCredentials.from_json_keyfile_dict(
-                    creds_dict,
-                    ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-                )
-        except (ImportError, AttributeError, KeyError) as e:
-            pass  # Streamlit not available or secrets not configured
-        
-        # Try environment variable (for GitHub Actions)
-        if "GOOGLE_CREDENTIALS" in os.environ:
             creds_dict = json.loads(os.environ["GOOGLE_CREDENTIALS"])
+            print("✅ Loaded credentials from environment variable")
             return ServiceAccountCredentials.from_json_keyfile_dict(
                 creds_dict,
                 ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
             )
-        
-        # Fallback to credentials.json (for local development)
-        if os.path.exists("credentials.json"):
-            return ServiceAccountCredentials.from_json_keyfile_name(
-                "credentials.json",
+        except Exception as e:
+            print(f"⚠️ Error loading credentials from environment: {e}")
+    
+    # Try Streamlit secrets (for Streamlit Cloud)
+    try:
+        import streamlit as st
+        if hasattr(st, 'secrets') and 'GOOGLE_CREDENTIALS' in st.secrets:
+            creds_json = st.secrets['GOOGLE_CREDENTIALS']
+            if isinstance(creds_json, str):
+                creds_dict = json.loads(creds_json)
+            else:
+                creds_dict = dict(creds_json)
+            
+            print("✅ Loaded credentials from Streamlit secrets")
+            return ServiceAccountCredentials.from_json_keyfile_dict(
+                creds_dict,
                 ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
             )
-        
-        raise FileNotFoundError("No credentials found. Please add credentials.json or configure secrets.")
+    except (ImportError, AttributeError, KeyError) as e:
+        print(f"⚠️ Streamlit secrets not available: {e}")
     
-    except Exception as e:
-        print(f"❌ Error loading credentials: {e}")
-        raise
+    # Fallback to credentials.json (for local development)
+    if os.path.exists("credentials.json"):
+        print("✅ Loaded credentials from credentials.json")
+        return ServiceAccountCredentials.from_json_keyfile_name(
+            "credentials.json",
+            ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        )
+    
+    raise Exception("❌ No credentials found. Please set GOOGLE_CREDENTIALS environment variable, Streamlit secrets, or add credentials.json")
 
 def get_config(key=None, default=None):
     """
