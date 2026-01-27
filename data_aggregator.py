@@ -112,7 +112,7 @@ def aggregate_to_monthly(df):
 def save_aggregated_data(weekly_df, monthly_df):
     """Save aggregated data to SQLite"""
     if not os.path.exists(DB_PATH):
-        print("⚠️ Database chưa tồn tại. Chạy data_archiver.py trước.")
+        print("[!] Database chưa tồn tại. Chạy data_archiver.py trước.")
         return
     
     conn = sqlite3.connect(DB_PATH)
@@ -149,11 +149,11 @@ def save_aggregated_data(weekly_df, monthly_df):
     # Save data
     if not weekly_df.empty:
         weekly_df.to_sql('price_weekly', conn, if_exists='replace', index=False)
-        print(f"✅ Saved {len(weekly_df)} weekly records")
+        print(f"[OK] Saved {len(weekly_df)} weekly records")
     
     if not monthly_df.empty:
         monthly_df.to_sql('price_monthly', conn, if_exists='replace', index=False)
-        print(f"✅ Saved {len(monthly_df)} monthly records")
+        print(f"[OK] Saved {len(monthly_df)} monthly records")
     
     conn.close()
 
@@ -174,7 +174,7 @@ def aggregate_all_tickers():
         tickers_sheet = spreadsheet.worksheet("tickers")
         tickers = tickers_sheet.col_values(1)[1:]
         
-        print(f"📊 Aggregating data for {len(tickers)} tickers...")
+        print(f"[CHART] Aggregating data for {len(tickers)} tickers...")
         
         all_weekly = []
         all_monthly = []
@@ -190,7 +190,7 @@ def aggregate_all_tickers():
             df = get_historical_data(ticker, start_date, end_date)
             
             if df.empty:
-                print(f"⚠️ No data for {ticker}")
+                print(f"[!] No data for {ticker}")
                 continue
             
             # Calculate ATR
@@ -214,23 +214,23 @@ def aggregate_all_tickers():
         # Combine and save
         if all_weekly:
             weekly_df = pd.concat(all_weekly, ignore_index=True)
-            print(f"\n📊 Total weekly records: {len(weekly_df)}")
+            print(f"\n[CHART] Total weekly records: {len(weekly_df)}")
         else:
             weekly_df = pd.DataFrame()
         
         if all_monthly:
             monthly_df = pd.concat(all_monthly, ignore_index=True)
-            print(f"📊 Total monthly records: {len(monthly_df)}")
+            print(f"[CHART] Total monthly records: {len(monthly_df)}")
         else:
             monthly_df = pd.DataFrame()
         
         # Save to database
         save_aggregated_data(weekly_df, monthly_df)
         
-        print("\n✅ Aggregation completed")
+        print("\n[OK] Aggregation completed")
     
     except Exception as e:
-        print(f"❌ Lỗi aggregation: {e}")
+        print(f"[X] Lỗi aggregation: {e}")
         import traceback
         traceback.print_exc()
 

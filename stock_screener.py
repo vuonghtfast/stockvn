@@ -33,27 +33,27 @@ def get_all_stock_symbols():
             hose = vs.stock(symbol='VNM', source='TCBS').listing.all_symbols(exchange='HOSE')
             if not hose.empty:
                 all_stocks.append(hose)
-                print(f"✅ HOSE: {len(hose)} mã")
+                print(f"[OK] HOSE: {len(hose)} mã")
         except Exception as e:
-            print(f"⚠️ Lỗi lấy HOSE: {e}")
+            print(f"[!] Lỗi lấy HOSE: {e}")
         
         # HNX (Sàn Hà Nội)
         try:
             hnx = vs.stock(symbol='VNM', source='TCBS').listing.all_symbols(exchange='HNX')
             if not hnx.empty:
                 all_stocks.append(hnx)
-                print(f"✅ HNX: {len(hnx)} mã")
+                print(f"[OK] HNX: {len(hnx)} mã")
         except Exception as e:
-            print(f"⚠️ Lỗi lấy HNX: {e}")
+            print(f"[!] Lỗi lấy HNX: {e}")
         
         # UPCOM (Sàn OTC)
         try:
             upcom = vs.stock(symbol='VNM', source='TCBS').listing.all_symbols(exchange='UPCOM')
             if not upcom.empty:
                 all_stocks.append(upcom)
-                print(f"✅ UPCOM: {len(upcom)} mã")
+                print(f"[OK] UPCOM: {len(upcom)} mã")
         except Exception as e:
-            print(f"⚠️ Lỗi lấy UPCOM: {e}")
+            print(f"[!] Lỗi lấy UPCOM: {e}")
         
         if all_stocks:
             combined = pd.concat(all_stocks, ignore_index=True)
@@ -65,14 +65,14 @@ def get_all_stock_symbols():
             else:
                 symbols = combined.iloc[:, 0].unique().tolist()
             
-            print(f"\n🎯 Tổng cộng: {len(symbols)} mã chứng khoán")
+            print(f"\n[TARGET] Tổng cộng: {len(symbols)} mã chứng khoán")
             return symbols
         else:
-            print("⚠️ Không lấy được danh sách mã. Dùng danh sách mặc định.")
+            print("[!] Không lấy được danh sách mã. Dùng danh sách mặc định.")
             return get_default_symbols()
     
     except Exception as e:
-        print(f"❌ Lỗi lấy danh sách mã: {e}")
+        print(f"[X] Lỗi lấy danh sách mã: {e}")
         return get_default_symbols()
 
 def get_default_symbols():
@@ -109,9 +109,9 @@ def screen_hot_stocks(symbols, lookback_days=30, min_volume_spike=2.0, min_price
     
     vs = Vnstock()
     
-    print(f"\n🔍 Bắt đầu quét {len(symbols)} mã...")
-    print(f"📅 Khoảng thời gian: {start_date.strftime('%Y-%m-%d')} đến {end_date.strftime('%Y-%m-%d')}")
-    print(f"⚙️ Tiêu chí: Volume spike >{min_volume_spike}x, Price change >{min_price_change}%\n")
+    print(f"\n[SEARCH] Bắt đầu quét {len(symbols)} mã...")
+    print(f"[CALENDAR] Khoảng thời gian: {start_date.strftime('%Y-%m-%d')} đến {end_date.strftime('%Y-%m-%d')}")
+    print(f"[SETTINGS] Tiêu chí: Volume spike >{min_volume_spike}x, Price change >{min_price_change}%\n")
     
     for idx, symbol in enumerate(symbols, 1):
         try:
@@ -168,7 +168,7 @@ def screen_hot_stocks(symbols, lookback_days=30, min_volume_spike=2.0, min_price
                     'signal': get_signal(price_change_pct, volume_ratio, is_breakout, current_rsi)
                 })
                 
-                print(f"🔥 {symbol}: Price {price_change_pct:+.2f}%, Volume {volume_ratio:.2f}x, RSI {current_rsi:.1f}")
+                print(f"[HOT] {symbol}: Price {price_change_pct:+.2f}%, Volume {volume_ratio:.2f}x, RSI {current_rsi:.1f}")
         
         except Exception as e:
             # Bỏ qua lỗi để tiếp tục quét
@@ -244,37 +244,37 @@ def save_to_sheets(df):
         ws.clear()
         ws.update([df.columns.values.tolist()] + df.astype(str).values.tolist())
         
-        print(f"\n✅ Đã lưu {len(df)} mã hot vào Google Sheets (sheet: hot_stocks)")
+        print(f"\n[OK] Đã lưu {len(df)} mã hot vào Google Sheets (sheet: hot_stocks)")
     
     except Exception as e:
-        print(f"⚠️ Lỗi lưu vào Sheets: {e}")
+        print(f"[!] Lỗi lưu vào Sheets: {e}")
 
 def print_summary(df):
     """In báo cáo tóm tắt"""
     if df.empty:
-        print("\n❌ Không tìm thấy mã nào đáng chú ý.")
+        print("\n[X] Không tìm thấy mã nào đáng chú ý.")
         return
     
     print("\n" + "="*80)
-    print("📊 BÁO CÁO MÃ CHỨNG KHOÁN HOT")
+    print("[CHART] BÁO CÁO MÃ CHỨNG KHOÁN HOT")
     print("="*80)
     
-    print(f"\n🔥 Tổng số mã hot: {len(df)}")
+    print(f"\n[HOT] Tổng số mã hot: {len(df)}")
     
     # Top volume spike
-    print("\n📈 TOP 10 KHỐI LƯỢNG TĂNG MẠNH:")
+    print("\n[UP] TOP 10 KHỐI LƯỢNG TĂNG MẠNH:")
     top_volume = df.nlargest(10, 'volume_spike')[['ticker', 'close', 'volume_spike', 'price_change_pct', 'signal']]
     print(top_volume.to_string(index=False))
     
     # Top price gainers
-    print("\n💰 TOP 10 TĂNG GIÁ MẠNH:")
+    print("\n[MONEY] TOP 10 TĂNG GIÁ MẠNH:")
     top_price = df.nlargest(10, 'price_change_pct')[['ticker', 'close', 'price_change_pct', 'volume_spike', 'signal']]
     print(top_price.to_string(index=False))
     
     # Breakout stocks
     breakouts = df[df['is_breakout'] == True]
     if not breakouts.empty:
-        print(f"\n🚀 CÁC MÃ BREAKOUT ({len(breakouts)} mã):")
+        print(f"\n[GO] CÁC MÃ BREAKOUT ({len(breakouts)} mã):")
         print(breakouts[['ticker', 'close', 'high_20d', 'volume_spike', 'signal']].to_string(index=False))
     
     # Strong buy signals
@@ -286,7 +286,7 @@ def print_summary(df):
     print("\n" + "="*80)
 
 if __name__ == "__main__":
-    print("🚀 STOCK SCREENER - TÌM MÃ CHỨNG KHOÁN HOT")
+    print("[GO] STOCK SCREENER - TÌM MÃ CHỨNG KHOÁN HOT")
     print("="*80)
     
     # Lựa chọn: quét toàn bộ hoặc chỉ VN30
@@ -300,7 +300,7 @@ if __name__ == "__main__":
         symbols = get_default_symbols()
     
     # Tùy chỉnh tiêu chí
-    print("\n⚙️ Cấu hình tiêu chí lọc:")
+    print("\n[SETTINGS] Cấu hình tiêu chí lọc:")
     try:
         lookback = int(input("Số ngày lịch sử (mặc định: 30): ") or "30")
         volume_spike = float(input("Ngưỡng volume spike (mặc định: 2.0x): ") or "2.0")
@@ -330,6 +330,6 @@ if __name__ == "__main__":
         if csv_choice == 'y':
             filename = f"hot_stocks_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
             hot_df.to_csv(filename, index=False, encoding='utf-8-sig')
-            print(f"✅ Đã xuất ra file: {filename}")
+            print(f"[OK] Đã xuất ra file: {filename}")
     
-    print("\n✅ Hoàn tất quét thị trường!")
+    print("\n[OK] Hoàn tất quét thị trường!")

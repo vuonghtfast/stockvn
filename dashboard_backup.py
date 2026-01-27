@@ -44,7 +44,7 @@ def fetch_financial_sheet(sheet_name):
         data = ws.get_all_records()
         return pd.DataFrame(data)
     except Exception as e:
-        st.error(f"⚠️ Lỗi đọc sheet {sheet_name}: {e}")
+        st.error("⚠️ Lỗi đọc sheet {sheet_name}: ")
         return pd.DataFrame()
 
 @st.cache_data(ttl=3600)
@@ -56,7 +56,7 @@ def fetch_ticker_list():
         tickers = ws.col_values(1)[1:]  # Skip header
         return [t.strip().upper() for t in tickers if t.strip()]
     except Exception as e:
-        st.error(f"⚠️ Lỗi đọc danh sách mã: {e}")
+        st.error("⚠️ Lỗi đọc danh sách mã: ")
         return ["VNM", "HPG", "VIC"]  # Default fallback
 
 def calculate_financial_metrics(symbol):
@@ -109,7 +109,7 @@ def calculate_financial_metrics(symbol):
                     metrics['debt_to_equity'] = latest_balance.get('total_liabilities', 0) / latest_balance['equity']
     
     except Exception as e:
-        st.warning(f"Không thể tính toán metrics cho {symbol}: {e}")
+        st.warning("Không thể tính toán metrics cho {symbol}: ")
     
     return metrics
 
@@ -276,7 +276,7 @@ if page == "🏠 Dashboard":
                 st.error(f"❌ Không tìm thấy dữ liệu cho mã {symbol}")
                 
         except Exception as e:
-            st.error(f"❌ Lỗi: {e}")
+            st.error("❌ Lỗi: ")
     else:
         st.info("👆 Nhập mã chứng khoán để bắt đầu phân tích")
 
@@ -372,7 +372,7 @@ elif page == "📊 Phân Tích":
                 else:
                     st.error(f"❌ Không lấy được dữ liệu cho {ta_symbol}")
         except Exception as e:
-            st.error(f"❌ Lỗi phân tích: {e}")
+            st.error("❌ Lỗi phân tích: ")
 
 elif page == "💰 Báo Cáo Tài Chính":
     st.markdown('<div class="main-header">💰 Báo Cáo Tài Chính</div>', unsafe_allow_html=True)
@@ -662,7 +662,7 @@ elif page == "🌐 Khuyến Nghị":
                         st.error(f"❌ Lỗi: {result.stderr}")
 
     except Exception as e:
-        st.error(f"❌ Lỗi kết nối cấu hình: {e}")
+        st.error("❌ Lỗi kết nối cấu hình: ")
 
 # Footer
 st.markdown("---")

@@ -32,7 +32,7 @@ def backtest_breakout_strategy(symbol, start_date, end_date, lookback=20, take_p
         )
         
         if df is None or df.empty:
-            print(f"❌ No data returned for {symbol}")
+            print(f"[X] No data returned for {symbol}")
             return {
                 'ticker': symbol,
                 'error': 'No data available',
@@ -49,10 +49,10 @@ def backtest_breakout_strategy(symbol, start_date, end_date, lookback=20, take_p
                 'avg_hold_days': 0
             }
         
-        print(f"✅ Got {len(df)} days of data")
+        print(f"[OK] Got {len(df)} days of data")
         
         if len(df) < lookback + 10:
-            print(f"⚠️ Not enough data: {len(df)} days (need at least {lookback + 10})")
+            print(f"[!] Not enough data: {len(df)} days (need at least {lookback + 10})")
             return {
                 'ticker': symbol,
                 'error': f'Insufficient data: {len(df)} days',
@@ -169,7 +169,7 @@ def backtest_breakout_strategy(symbol, start_date, end_date, lookback=20, take_p
         return metrics
     
     except Exception as e:
-        print(f"❌ Lỗi backtest {symbol}: {e}")
+        print(f"[X] Lỗi backtest {symbol}: {e}")
         return None
 
 def backtest_with_dataframe(df, symbol, lookback=20, take_profit=0.10, stop_loss=0.05, max_hold_days=20):
@@ -301,7 +301,7 @@ def backtest_with_dataframe(df, symbol, lookback=20, take_profit=0.10, stop_loss
         }
     
     except Exception as e:
-        print(f"❌ Lỗi backtest {symbol}: {e}")
+        print(f"[X] Lỗi backtest {symbol}: {e}")
         import traceback
         traceback.print_exc()
         return {
@@ -327,8 +327,8 @@ def backtest_multiple_tickers(tickers, period_years=2):
     
     results = []
     
-    print(f"\n🔬 Bắt đầu backtest {len(tickers)} mã...")
-    print(f"📅 Khoảng thời gian: {start_date.strftime('%Y-%m-%d')} đến {end_date.strftime('%Y-%m-%d')}\n")
+    print(f"\n[LAB] Bắt đầu backtest {len(tickers)} mã...")
+    print(f"[CALENDAR] Khoảng thời gian: {start_date.strftime('%Y-%m-%d')} đến {end_date.strftime('%Y-%m-%d')}\n")
     
     for idx, ticker in enumerate(tickers, 1):
         print(f"Progress: {idx}/{len(tickers)} - Testing {ticker}...")
@@ -341,29 +341,29 @@ def backtest_multiple_tickers(tickers, period_years=2):
         
         if metrics and metrics['total_trades'] > 0:
             results.append(metrics)
-            print(f"✅ {ticker}: {metrics['total_trades']} trades, Win rate: {metrics['win_rate']:.1f}%")
+            print(f"[OK] {ticker}: {metrics['total_trades']} trades, Win rate: {metrics['win_rate']:.1f}%")
     
     return pd.DataFrame(results)
 
 def print_backtest_summary(results_df):
     """Print summary of backtest results"""
     if results_df.empty:
-        print("\n❌ Không có kết quả backtest nào.")
+        print("\n[X] Không có kết quả backtest nào.")
         return
     
     print("\n" + "="*80)
-    print("📊 KẾT QUẢ BACKTEST CHIẾN LƯỢC BREAKOUT")
+    print("[CHART] KẾT QUẢ BACKTEST CHIẾN LƯỢC BREAKOUT")
     print("="*80)
     
-    print(f"\n🎯 Tổng số mã test: {len(results_df)}")
-    print(f"📈 Tổng số giao dịch: {results_df['total_trades'].sum()}")
+    print(f"\n[TARGET] Tổng số mã test: {len(results_df)}")
+    print(f"[UP] Tổng số giao dịch: {results_df['total_trades'].sum()}")
     
     # Overall statistics
     total_trades = results_df['total_trades'].sum()
     total_wins = results_df['winning_trades'].sum()
     overall_win_rate = (total_wins / total_trades * 100) if total_trades > 0 else 0
     
-    print(f"\n💰 HIỆU SUẤT TỔNG THỂ:")
+    print(f"\n[MONEY] HIỆU SUẤT TỔNG THỂ:")
     print(f"  - Win Rate: {overall_win_rate:.2f}%")
     print(f"  - Avg Gain (winning trades): {results_df['avg_gain'].mean():.2f}%")
     print(f"  - Avg Loss (losing trades): {results_df['avg_loss'].mean():.2f}%")
@@ -399,4 +399,4 @@ if __name__ == "__main__":
     if not results.empty:
         filename = f"backtest_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         results.to_csv(filename, index=False, encoding='utf-8-sig')
-        print(f"\n✅ Đã lưu kết quả vào file: {filename}")
+        print(f"\n[OK] Đã lưu kết quả vào file: {filename}")

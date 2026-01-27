@@ -24,7 +24,7 @@ def get_spreadsheet():
         else:
             return client.open("stockdata")
     except Exception as e:
-        print(f"[ERROR] Failed to connect to Google Sheets: {e}")
+        print(f"[X] Failed to connect to Google Sheets: {e}")
         return None
 
 def calculate_all_metrics(ticker, spreadsheet):
@@ -126,7 +126,7 @@ def calculate_all_metrics(ticker, spreadsheet):
             'dividend_yield': round(dividend_yield, 2)
         }
     except Exception as e:
-        print(f"[ERROR] Failed to calculate metrics for {ticker}: {e}")
+        print(f"[X] Failed to calculate metrics for {ticker}: {e}")
         return None
 
 def get_industry_avg_pe(ticker):
@@ -353,4 +353,4 @@ if __name__ == "__main__":
     if not results.empty:
         filename = f"screening_results_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.csv"
         results.to_csv(filename, index=False, encoding='utf-8-sig')
-        print(f"\n✅ Saved results to {filename}")
+        print(f"\n[OK] Saved results to {filename}")

@@ -65,7 +65,7 @@ def fetch_stock_data(symbol, start_date, end_date):
         return df
     
     except Exception as e:
-        st.error(f"❌ Lỗi đọc dữ liệu: {e}")
+        st.error("❌ Lỗi đọc dữ liệu: ")
         return pd.DataFrame()
 
 @st.cache_data(ttl=3600)  # Finance data is daily, cache for 1 hour
@@ -82,9 +82,7 @@ def fetch_financial_sheet(sheet_name):
         
         return df
     except Exception as e:
-        st.error(f"❌ Lỗi đọc sheet '{sheet_name}': {e}")
-        import traceback
-        st.code(traceback.format_exc())
+        st.error(f"❌ Lỗi đọc sheet '{sheet_name}': ")
         return pd.DataFrame()
 
 @st.cache_data(ttl=3600)
@@ -104,7 +102,7 @@ def fetch_ticker_list():
         
         return df
     except Exception as e:
-        st.error(f"⚠️ Lỗi đọc danh sách mã: {e}")
+        st.error("⚠️ Lỗi đọc danh sách mã: ")
         # Return default fallback with sectors
         default_tickers = ["VNM", "HPG", "VIC"]
         return pd.DataFrame({
@@ -222,7 +220,7 @@ def calculate_financial_metrics(symbol):
                                 metrics['PE'] = float(current_price) / metrics['EPS']
     
     except Exception as e:
-        st.warning(f"⚠️ Lỗi tính toán metrics: {e}")
+        st.warning("⚠️ Lỗi tính toán metrics: ")
         import traceback
         st.text(traceback.format_exc())
     
@@ -256,42 +254,69 @@ def get_spreadsheet():
     return client.open("stockdata")
 
 
-# ===== Money Flow Helper Functions =====
+# ===== VN Index Helper Function =====
 @st.cache_data(ttl=300)  # Cache 5 minutes
-def get_money_flow_data():
-    """Lấy dữ liệu dòng tiền từ Google Sheets"""
+def get_vnindex_data():
+    """Lấy dữ liệu VN-Index từ Google Sheets"""
     try:
-        creds = get_google_credentials()
-        client = gspread.authorize(creds)
+        spreadsheet = get_spreadsheet()
         
-        import os
-        spreadsheet_id = os.getenv("SPREADSHEET_ID")
-        if spreadsheet_id:
-            spreadsheet = client.open_by_key(spreadsheet_id)
-        else:
-            spreadsheet = client.open("stockdata")
-        
-        # Lấy intraday flow
         try:
-            flow_ws = spreadsheet.worksheet("intraday_flow")
-            flow_data = flow_ws.get_all_records()
-            flow_df = pd.DataFrame(flow_data)
+            vnindex_ws = spreadsheet.worksheet("vnindex")
+            vnindex_data = vnindex_ws.get_all_records()
             
-            if not flow_df.empty:
-                # Convert numeric columns
-                numeric_cols = ['money_flow_normalized', 'pe_ratio', 'pb_ratio', 'ps_ratio', 'price_change_pct']
-                for col in numeric_cols:
-                    if col in flow_df.columns:
-                        flow_df[col] = pd.to_numeric(flow_df[col], errors='coerce')
-                
-                return flow_df
+            if vnindex_data:
+                vnindex_df = pd.DataFrame(vnindex_data)
+                # Lấy record mới nhất
+                latest = vnindex_df.iloc[-1]
+                return {
+                    'value': float(latest.get('value', 0)),
+                    'change': float(latest.get('change', 0)),
+                    'change_pct': float(latest.get('change_pct', 0)),
+                    'timestamp': latest.get('timestamp', ''),
+                    'volume': int(latest.get('volume', 0))
+                }
         except:
             pass
         
-        return pd.DataFrame()
+        return None
     except Exception as e:
-        st.error(f"Lỗi khi lấy dữ liệu dòng tiền: {e}")
-        return pd.DataFrame()
+        return None
+
+
+# ===== Money Flow Helper Functions =====
+@st.cache_data(ttl=300)  # Cache 5 minutes
+def get_money_flow_top():
+    """Lay du lieu dong tien tu money_flow_top sheet"""
+    try:
+        spreadsheet = get_spreadsheet()
+        if not spreadsheet:
+            return None, None, None
+        
+        try:
+            flow_ws = spreadsheet.worksheet("money_flow_top")
+            flow_data = flow_ws.get_all_records()
+            flow_df = pd.DataFrame(flow_data)
+            
+            if flow_df.empty:
+                return None, None, None
+            
+            # Convert numeric columns
+            numeric_cols = ['price', 'volume', 'buy_flow', 'sell_flow', 'net_flow']
+            for col in numeric_cols:
+                if col in flow_df.columns:
+                    flow_df[col] = pd.to_numeric(flow_df[col], errors='coerce')
+            
+            # Split by type
+            stocks_df = flow_df[flow_df['type'] == 'stock'].copy()
+            positive_sectors = flow_df[flow_df['type'] == 'sector_positive'].copy()
+            negative_sectors = flow_df[flow_df['type'] == 'sector_negative'].copy()
+            
+            return stocks_df, positive_sectors, negative_sectors
+        except:
+            return None, None, None
+    except:
+        return None, None, None
 
 
 # ===== Tab Render Functions are imported from dashboard_tabs.py =====
@@ -441,6 +466,22 @@ def get_money_flow_data():
 
 def render_financial_screening_tab():
     """Render tab Lọc Cổ Phiếu"""
+    
+    # Real-time mode toggle
+    st.markdown("### ⚡ Chế Độ Lọc")
+    col_mode1, col_mode2 = st.columns([1, 3])
+    with col_mode1:
+        realtime_mode = st.toggle("🔴 Real-time Mode", value=False, 
+                                  help="Sử dụng dữ liệu dòng tiền real-time (cập nhật mỗi 15 phút)")
+    with col_mode2:
+        if realtime_mode:
+            st.info("💡 Đang sử dụng dữ liệu dòng tiền real-time từ intraday_flow")
+        else:
+            st.info("💡 Đang sử dụng dữ liệu tài chính từ báo cáo định kỳ")
+    
+    st.markdown("---")
+    
+    # Main header
     st.markdown('<div class="main-header">🔍 Lọc Cổ Phiếu Chất Lượng</div>', unsafe_allow_html=True)
     
     st.markdown("### 📊 Hệ Thống 10 Chỉ Tiêu Tài Chính")
@@ -665,114 +706,95 @@ with st.sidebar:
 if page == "🏠 Dashboard":
     st.markdown('<div class="main-header">📈 Stock Analysis Dashboard</div>', unsafe_allow_html=True)
     
-    # Stock symbol input
-    tickers = fetch_ticker_list()
-    col1, col2, col3 = st.columns([2, 1, 1])
-    with col1:
-        symbol = st.selectbox("Mã chứng khoán", options=tickers, index=0 if "VNM" not in tickers else tickers.index("VNM"))
-    with col2:
-        days = st.number_input("Số ngày", min_value=30, max_value=365, value=90)
-    with col3:
-        if st.button("🔍 Phân tích", use_container_width=True, type="primary"):
-            st.rerun()
+    # VN-Index Display
+    vnindex = get_vnindex_data()
+    if vnindex:
+        col_vn1, col_vn2, col_vn3, col_vn4 = st.columns(4)
+        with col_vn1:
+            st.metric(
+                "📊 VN-Index",
+                f"{vnindex['value']:,.2f}",
+                f"{vnindex['change']:+,.2f} ({vnindex['change_pct']:+.2f}%)",
+                delta_color="normal"
+            )
+        with col_vn2:
+            st.metric("🕐 Cập nhật", vnindex['timestamp'].split(' ')[1] if ' ' in vnindex['timestamp'] else vnindex['timestamp'])
+        with col_vn3:
+            st.metric("📊 Khối lượng", f"{vnindex['volume']:,}")
+        with col_vn4:
+            trend = "📈 Tăng" if vnindex['change'] > 0 else "📉 Giảm" if vnindex['change'] < 0 else "➡️ Đứng"
+            st.metric("Xu hướng", trend)
+        
+        st.markdown("---")
     
-    if symbol:
-        try:
-            # Get stock data
-            end_date = datetime.now()
-            start_date = end_date - timedelta(days=days)
+    # Money Flow Summary - Using new money_flow_top format
+    st.markdown("## 💰 Tổng Quan Dòng Tiền Mua-Bán")
+    
+    stocks_df, positive_sectors, negative_sectors = get_money_flow_top()
+    
+    if (positive_sectors is not None and not positive_sectors.empty) or \
+       (negative_sectors is not None and not negative_sectors.empty):
+        # Top 3 sectors with POSITIVE flow (with stocks)
+        if positive_sectors is not None and not positive_sectors.empty:
+            st.markdown("### 📈 Top 3 Ngành Dòng Tiền MUA Mạnh Nhất")
             
-            # Fetch data with caching
-            with st.spinner(f"Đang tải dữ liệu {symbol}..."):
-                df = fetch_stock_data(
-                    symbol=symbol,
-                    start_date=start_date.strftime("%Y-%m-%d"),
-                    end_date=end_date.strftime("%Y-%m-%d")
-                )
-            
-            if df is not None and len(df) > 0:
-                # Display metrics
-                latest = df.iloc[-1]
-                prev = df.iloc[-2] if len(df) > 1 else latest
-                
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    change = latest['close'] - prev['close']
-                    change_pct = (change / prev['close']) * 100
+            col1, col2, col3 = st.columns(3)
+            for idx, (col, row) in enumerate(zip([col1, col2, col3], positive_sectors.head(3).itertuples())):
+                with col:
                     st.metric(
-                        "Giá đóng cửa",
-                        f"{latest['close']:,.0f}",
-                        f"{change:+,.0f} ({change_pct:+.2f}%)"
+                        f"#{idx+1} {row.sector}",
+                        f"+{row.net_flow:,.2f}B VNĐ",
+                        f"Mua: {row.buy_flow:,.1f}B | Bán: {row.sell_flow:,.1f}B"
                     )
-                with col2:
-                    st.metric("Cao nhất", f"{latest['high']:,.2f}")
-                with col3:
-                    st.metric("Thấp nhất", f"{latest['low']:,.2f}")
-                with col4:
-                    st.metric("Khối lượng", f"{latest['volume']:,.0f}")
-                
-                st.markdown("---")
-                
-                # Candlestick chart
-                st.subheader(f"📊 Biểu Đồ Giá {symbol}")
-                
-                fig = go.Figure(data=[go.Candlestick(
-                    x=df.index,
-                    open=df['open'],
-                    high=df['high'],
-                    low=df['low'],
-                    close=df['close'],
-                    name=symbol
-                )])
-                
-                fig.update_layout(
-                    xaxis_title="Ngày",
-                    yaxis_title="Giá (VNĐ)",
-                    height=500,
-                    xaxis_rangeslider_visible=False
-                )
-                
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # Volume chart
-                st.subheader("📈 Khối Lượng Giao Dịch")
-                
-                fig_vol = go.Figure(data=[go.Bar(
-                    x=df.index,
-                    y=df['volume'],
-                    name='Volume',
-                    marker_color='lightblue'
-                )])
-                
-                fig_vol.update_layout(
-                    xaxis_title="Ngày",
-                    yaxis_title="Khối lượng",
-                    height=300
-                )
-                
-                st.plotly_chart(fig_vol, use_container_width=True)
-                
-                # Data table
-                with st.expander("📄 Xem dữ liệu chi tiết"):
-                    st.dataframe(df.tail(20), use_container_width=True)
-                
-                # Auto-refresh countdown
-                if auto_refresh:
-                    refresh_placeholder = st.empty()
-                    for remaining in range(refresh_interval * 60, 0, -1):
-                        mins, secs = divmod(remaining, 60)
-                        refresh_placeholder.info(
-                            f"🔄 Tự động làm mới sau: {mins:02d}:{secs:02d}"
-                        )
-                        time.sleep(1)
-                    st.rerun()
-            else:
-                st.error(f"❌ Không tìm thấy dữ liệu cho mã {symbol}")
-                
-        except Exception as e:
-            st.error(f"❌ Lỗi: {e}")
+            
+            st.markdown("---")
+        
+        # Top 9 stocks (3 per sector)
+        if stocks_df is not None and not stocks_df.empty:
+            st.markdown("### 🔥 Top 9 Cổ Phiếu Dòng Tiền MUA Mạnh Nhất")
+            st.markdown("*(3 cổ phiếu mỗi ngành)*")
+            
+            # Display in 3 columns per row
+            for i in range(0, min(9, len(stocks_df)), 3):
+                cols = st.columns(3)
+                for j, col in enumerate(cols):
+                    if i + j < len(stocks_df):
+                        row = stocks_df.iloc[i + j]
+                        with col:
+                            st.metric(
+                                f"{row['ticker']}",
+                                f"+{row['net_flow']:,.2f}B VNĐ",
+                                f"Giá: {row['price']:,.1f}K",
+                                delta_color="normal"
+                            )
+                            st.caption(f"Ngành: {row['sector']}")
+            
+            st.markdown("---")
+        
+        # Top 3 sectors with NEGATIVE flow (sectors only, no stocks)
+        if negative_sectors is not None and not negative_sectors.empty:
+            st.markdown("### 📉 Top 3 Ngành Dòng Tiền BÁN Mạnh Nhất")
+            st.markdown("*(Chỉ hiển thị ngành, không chi tiết cổ phiếu)*")
+            
+            col1, col2, col3 = st.columns(3)
+            for idx, (col, row) in enumerate(zip([col1, col2, col3], negative_sectors.head(3).itertuples())):
+                with col:
+                    st.metric(
+                        f"#{idx+1} {row.sector}",
+                        f"{row.net_flow:,.2f}B VNĐ",
+                        f"Mua: {row.buy_flow:,.1f}B | Bán: {row.sell_flow:,.1f}B",
+                        delta_color="inverse"
+                    )
+            
+            st.markdown("---")
+        
+        # Timestamp
+        if not stocks_df.empty and 'timestamp' in stocks_df.columns:
+            st.caption(f"Cap nhat luc: {stocks_df['timestamp'].iloc[0]}")
+        
     else:
-        st.info("👆 Nhập mã chứng khoán để bắt đầu phân tích")
+        st.warning("Chua co du lieu dong tien. Vui long chay `python money_flow.py` de cap nhat.")
+        st.info("Hoac doi GitHub Actions tu dong cap nhat vao gio giao dich.")
 
 elif page == "📊 Phân Tích":
     st.markdown('<div class="main-header">📊 Phân Tích Kỹ Thuật</div>', unsafe_allow_html=True)
@@ -931,7 +953,7 @@ elif page == "📊 Phân Tích":
                 else:
                     st.error(f"❌ Không lấy được dữ liệu cho {ta_symbol}")
         except Exception as e:
-            st.error(f"❌ Lỗi phân tích: {e}")
+            st.error("❌ Lỗi phân tích: ")
 
 elif page == "💰 Báo Cáo Tài Chính":
     st.markdown('<div class="main-header">💰 Báo Cáo Tài Chính</div>', unsafe_allow_html=True)
@@ -1181,13 +1203,13 @@ elif page == "💰 Báo Cáo Tài Chính":
                 st.info("💡 Chưa có dữ liệu tài chính. Vui lòng chạy `finance.py` hoặc kiểm tra kết nối Sheets.")
 
 
-# Patch for dashboard.py - Insert this code at line 815 (before "elif page == "💸 Dòng Tiền":
+elif page == "💸 Dòng Tiền":
     render_money_flow_tab()
 
 elif page == "🔍 Lọc Cổ Phiếu":
     render_financial_screening_tab()
 
-elif page == "📋 Danh Sách":
+elif page == "📋 Danh Sách Theo Dõi":
     render_watchlist_tab()
 
 elif page == "🌐 Khuyến Nghị":
@@ -1455,10 +1477,8 @@ elif page == "🔬 Backtest":
                                "- Kiểm tra kết nối internet")
                 
                 except Exception as e:
-                    st.error(f"❌ Lỗi backtest: {e}")
+                    st.error("❌ Lỗi backtest: ")
                     import traceback
-                    st.code(traceback.format_exc())
-    
     with tab2:
         st.subheader("Backtest Danh Mục Khuyến Nghị")
         
@@ -1589,7 +1609,7 @@ elif page == "🔬 Backtest":
                                     if metrics:
                                         results.append(metrics)
                         except Exception as e:
-                            st.warning(f"⚠️ Lỗi backtest {ticker}: {e}")
+                            st.warning(f"⚠️ Lỗi backtest {ticker}: ")
                     
                     progress_bar.empty()
                     status_text.empty()
@@ -1639,10 +1659,8 @@ elif page == "🔬 Backtest":
                 st.info("📝 Danh mục trống. Thêm mã để bắt đầu backtest!")
         
         except Exception as e:
-            st.error(f"❌ Lỗi quản lý danh mục: {e}")
+            st.error("❌ Lỗi quản lý danh mục: ")
             import traceback
-            st.code(traceback.format_exc())
-
 elif page == "⚙️ Settings":
     from ticker_manager import add_ticker, remove_ticker, get_current_tickers
     
@@ -1656,7 +1674,7 @@ elif page == "⚙️ Settings":
         spreadsheet = get_spreadsheet()
         current_tickers = get_current_tickers(spreadsheet)
     except Exception as e:
-        st.error(f"Lỗi kết nối Google Sheets: {e}")
+        st.error("Lỗi kết nối Google Sheets: ")
         current_tickers = []
     
     # Display current tickers
@@ -1941,10 +1959,8 @@ elif page == "⚙️ Settings":
                            "- Kiểm tra Google Sheets API quota")
             
             except Exception as e:
-                st.error(f"❌ Lỗi: {e}")
+                st.error("❌ Lỗi: ")
                 import traceback
-                st.code(traceback.format_exc())
-    
     # Quick actions
     st.markdown("---")
     st.markdown("**⚡ Quick Actions**")
@@ -1962,6 +1978,72 @@ elif page == "⚙️ Settings":
     with quick_col3:
         if st.button("🔄 Update hàng ngày", use_container_width=True):
             st.info("Chạy: `python price.py --period 1w --interval 1D --mode update`")
+    
+    # ===== Money Flow Scraper =====
+    st.markdown("---")
+    st.subheader("💸 Cào Dữ Liệu Dòng Tiền")
+    st.info("💡 Cào dữ liệu dòng tiền mua-bán real-time từ vnstock intraday API")
+    
+    mf_col1, mf_col2 = st.columns(2)
+    
+    with mf_col1:
+        if st.button("🔄 Cào Dòng Tiền Real-time", use_container_width=True, type="primary"):
+            with st.spinner("Đang cào dữ liệu dòng tiền..."):
+                try:
+                    import subprocess
+                    result = subprocess.run(
+                        [sys.executable, 'money_flow.py', '--skip-holiday-check'],
+                        stdout=subprocess.PIPE, 
+                        stderr=subprocess.DEVNULL,
+                        text=True,
+                        encoding='utf-8',
+                        errors='replace',
+                        timeout=300
+                    )
+                    if result.returncode == 0:
+                        st.success("Hoan tat cao dong tien!")
+                        st.balloons()
+                    else:
+                        st.error("Loi khi cao dong tien")
+                except Exception as e:
+                    st.error("Loi he thong")
+    
+    with mf_col2:
+        st.markdown("**Output:** Sheet `money_flow_top`")
+        st.caption("Top 3 ngành + 9 cổ phiếu dòng tiền mua mạnh nhất")
+    
+    # ===== Finance Scraper =====
+    st.markdown("---")
+    st.subheader("📋 Cào Báo Cáo Tài Chính")
+    st.info("💡 Cào dữ liệu báo cáo tài chính (Income, Balance, Cashflow) từ vnstock")
+    
+    fin_col1, fin_col2 = st.columns(2)
+    
+    with fin_col1:
+        if st.button("📋 Cào Báo Cáo Tài Chính", use_container_width=True, type="primary"):
+            with st.spinner("Đang cào báo cáo tài chính..."):
+                try:
+                    import subprocess
+                    result = subprocess.run(
+                        [sys.executable, 'finance.py'],
+                        stdout=subprocess.PIPE, 
+                        stderr=subprocess.DEVNULL,
+                        text=True,
+                        encoding='utf-8',
+                        errors='replace',
+                        timeout=600
+                    )
+                    if result.returncode == 0:
+                        st.success("Hoan tat cao bao cao tai chinh!")
+                        st.balloons()
+                    else:
+                        st.error("Loi khi cao bao cao tai chinh")
+                except Exception as e:
+                    st.error("Loi he thong")
+    
+    with fin_col2:
+        st.markdown("**Output:** Sheets `income`, `balance`, `cashflow`")
+        st.caption("Báo cáo kết quả kinh doanh, bảng cân đối kế toán, lưu chuyển tiền tệ")
 
 # Footer
 st.markdown("---")

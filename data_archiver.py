@@ -38,7 +38,7 @@ def get_google_credentials():
         else:
             raise FileNotFoundError("No credentials found")
     except Exception as e:
-        print(f"❌ Lỗi tải credentials: {e}")
+        print(f"[X] Lỗi tải credentials: {e}")
         sys.exit(1)
 
 def init_database():
@@ -85,7 +85,7 @@ def init_database():
     
     conn.commit()
     conn.close()
-    print("✅ Database initialized")
+    print("[OK] Database initialized")
 
 def archive_old_data():
     """
@@ -112,13 +112,13 @@ def archive_old_data():
         try:
             history_sheet = spreadsheet.worksheet("price_history")
         except gspread.WorksheetNotFound:
-            print("⚠️ Sheet 'price_history' không tồn tại. Không có gì để archive.")
+            print("[!] Sheet 'price_history' không tồn tại. Không có gì để archive.")
             return
         
         # Read all data from price_history
         all_data = history_sheet.get_all_records()
         if not all_data:
-            print("⚠️ Sheet 'price_history' trống.")
+            print("[!] Sheet 'price_history' trống.")
             return
         
         df = pd.DataFrame(all_data)
@@ -128,7 +128,7 @@ def archive_old_data():
             df['timestamp'] = df['time']
         
         if 'timestamp' not in df.columns:
-            print("❌ Không tìm thấy cột timestamp/time trong data")
+            print("[X] Không tìm thấy cột timestamp/time trong data")
             return
         
         # Filter old data (to archive)
@@ -137,10 +137,10 @@ def archive_old_data():
         recent_data = df[df['timestamp'] >= cutoff_date].copy()
         
         if old_data.empty:
-            print(f"✅ Không có data cũ hơn {cutoff_date} để archive")
+            print(f"[OK] Không có data cũ hơn {cutoff_date} để archive")
             return
         
-        print(f"📊 Found {len(old_data)} records to archive, {len(recent_data)} to keep in Sheets")
+        print(f"[CHART] Found {len(old_data)} records to archive, {len(recent_data)} to keep in Sheets")
         
         # Initialize database
         init_database()
@@ -175,18 +175,18 @@ def archive_old_data():
         conn.commit()
         conn.close()
         
-        print(f"✅ Archived {len(archive_df)} records to SQLite")
+        print(f"[OK] Archived {len(archive_df)} records to SQLite")
         
         # Update Google Sheets to keep only recent data
         if not recent_data.empty:
             history_sheet.clear()
             history_sheet.update([recent_data.columns.values.tolist()] + recent_data.values.tolist())
-            print(f"✅ Updated Sheets to keep {len(recent_data)} recent records")
+            print(f"[OK] Updated Sheets to keep {len(recent_data)} recent records")
         else:
-            print("⚠️ Không có data gần đây để giữ lại trong Sheets")
+            print("[!] Không có data gần đây để giữ lại trong Sheets")
     
     except Exception as e:
-        print(f"❌ Lỗi archive data: {e}")
+        print(f"[X] Lỗi archive data: {e}")
         import traceback
         traceback.print_exc()
 
@@ -222,9 +222,9 @@ def get_historical_data(ticker, start_date, end_date):
             
             if not sqlite_df.empty:
                 all_data.append(sqlite_df)
-                print(f"📊 Loaded {len(sqlite_df)} records from SQLite for {ticker}")
+                print(f"[CHART] Loaded {len(sqlite_df)} records from SQLite for {ticker}")
         except Exception as e:
-            print(f"⚠️ Lỗi query SQLite: {e}")
+            print(f"[!] Lỗi query SQLite: {e}")
     
     # 2. Query from Google Sheets for recent data
     try:
@@ -257,25 +257,25 @@ def get_historical_data(ticker, start_date, end_date):
             
             if not filtered.empty:
                 all_data.append(filtered)
-                print(f"📊 Loaded {len(filtered)} records from Sheets for {ticker}")
+                print(f"[CHART] Loaded {len(filtered)} records from Sheets for {ticker}")
     
     except Exception as e:
-        print(f"⚠️ Lỗi query Sheets: {e}")
+        print(f"[!] Lỗi query Sheets: {e}")
     
     # 3. Merge and return
     if all_data:
         result = pd.concat(all_data, ignore_index=True)
         result = result.sort_values('timestamp').drop_duplicates(subset=['timestamp', 'ticker'])
-        print(f"✅ Total {len(result)} records for {ticker} from {start_date} to {end_date}")
+        print(f"[OK] Total {len(result)} records for {ticker} from {start_date} to {end_date}")
         return result
     else:
-        print(f"⚠️ Không tìm thấy data cho {ticker}")
+        print(f"[!] Không tìm thấy data cho {ticker}")
         return pd.DataFrame()
 
 def get_database_stats():
     """Get statistics about archived data"""
     if not os.path.exists(DB_PATH):
-        print("⚠️ Database chưa tồn tại")
+        print("[!] Database chưa tồn tại")
         return
     
     conn = sqlite3.connect(DB_PATH)

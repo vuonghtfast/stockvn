@@ -16,7 +16,7 @@ def cleanup_removed_tickers(spreadsheet, current_tickers, sheets_to_clean):
         sheets_to_clean: List of sheet names to clean
     """
     print(f"\n[CLEANUP] Checking for removed tickers...")
-    print(f"[INFO] Current tickers: {len(current_tickers)} tickers")
+    print(f"[i] Current tickers: {len(current_tickers)} tickers")
     
     for sheet_name in sheets_to_clean:
         try:

@@ -11,9 +11,9 @@ from cleanup_helper import cleanup_removed_tickers
 # Initialize vnstock with API key if available
 api_key = os.getenv("VNSTOCK_API_KEY")
 if api_key:
-    print("[INFO] Using vnstock with API key (60 req/min)")
+    print("[i] Using vnstock with API key (60 req/min)")
 else:
-    print("[WARN] Using vnstock without API key (20 req/min). Register at https://vnstocks.com/login")
+    print("[!] Using vnstock without API key (20 req/min). Register at https://vnstocks.com/login")
 
 # 1. Auth Google Sheets (Không thay đổi)
 try:
@@ -24,7 +24,7 @@ try:
     client = gspread.authorize(creds)
     spreadsheet = client.open("stockdata")
 except Exception as e:
-    print(f"❌ Lỗi kết nối Google Sheets: {e}")
+    print(f"[X] Lỗi kết nối Google Sheets: {e}")
     sys.exit(1)
 
 # 2. Đọc danh sách mã cổ phiếu (Không thay đổi)
@@ -32,10 +32,10 @@ try:
     tickers_ws = spreadsheet.worksheet("tickers")
     tickers = [row[0] for row in tickers_ws.get_all_values()[1:] if row] 
     if not tickers:
-        print("⚠️ Sheet 'tickers' không có mã cổ phiếu nào. Chương trình dừng lại.")
+        print("[!] Sheet 'tickers' không có mã cổ phiếu nào. Chương trình dừng lại.")
         sys.exit(0)
 except Exception as e:
-    print(f"❌ Lỗi đọc sheet 'tickers': {e}")
+    print(f"[X] Lỗi đọc sheet 'tickers': {e}")
     sys.exit(1)
 
 # 3. Hàm lấy báo cáo tài chính (ĐÃ LOẠI BỎ TỶ SỐ)
@@ -51,14 +51,14 @@ def fetch_financials(symbol, period="quarter"):
         try:
             data["cashflow"] = comp.finance.cash_flow(period=period) 
         except AttributeError as attr_e:
-            print(f"⚠️ Bỏ qua LCTT cho {symbol} | {period}. Lỗi tên: {attr_e}")
+            print(f"[!] Bỏ qua LCTT cho {symbol} | {period}. Lỗi tên: {attr_e}")
         except Exception:
             pass
             
         return data
 
     except Exception as e:
-        print(f"❌ Lỗi khi khởi tạo hoặc lấy báo cáo cơ bản {symbol} | {period}: {e}")
+        print(f"[X] Lỗi khi khởi tạo hoặc lấy báo cáo cơ bản {symbol} | {period}: {e}")
         return {}
 
 # 4. Ghi dữ liệu vào Google Sheets (Không thay đổi)
@@ -69,12 +69,12 @@ def write_to_sheet(sheet_name, df):
     except gspread.WorksheetNotFound:
         ws = spreadsheet.add_worksheet(title=sheet_name, rows="2000", cols="20")
     except Exception as e:
-        print(f"❌ Lỗi khi truy cập/tạo sheet {sheet_name}: {e}")
+        print(f"[X] Lỗi khi truy cập/tạo sheet {sheet_name}: {e}")
         return 
         
     ws.clear()
     ws.update([df.columns.values.tolist()] + df.astype(str).values.tolist(), range_name='A1')
-    print(f"✅ Ghi {sheet_name} xong ({len(df)} dòng)")
+    print(f"[OK] Ghi {sheet_name} xong ({len(df)} dòng)")
 
 # ===== Cleanup removed tickers =====
 cleanup_removed_tickers(spreadsheet, tickers, ['income', 'balance', 'cashflow'])
@@ -130,7 +130,7 @@ def create_summary(period="year"):
             # Kiểm tra cột và đủ dữ liệu
             if not REQUIRED_COLS.issubset(df.columns) or len(df) < 2:
                 missing = REQUIRED_COLS - set(df.columns)
-                print(f"⚠️ Bỏ qua summary cho {t} ({period}). Thiếu cột ({missing}) hoặc không đủ dữ liệu lịch sử.")
+                print(f"[!] Bỏ qua summary cho {t} ({period}). Thiếu cột ({missing}) hoặc không đủ dữ liệu lịch sử.")
                 continue
 
             # Thực hiện tính toán
@@ -147,7 +147,7 @@ def create_summary(period="year"):
                 
             elif period == "quarter":
                 if "quarter" not in df.columns:
-                     print(f"⚠️ Bỏ qua summary QOQ cho {t}. Thiếu cột 'quarter'.")
+                     print(f"[!] Bỏ qua summary QOQ cho {t}. Thiếu cột 'quarter'.")
                      continue
                 df.sort_values(["year", "quarter"], inplace=True)
                 
@@ -171,11 +171,11 @@ def create_summary(period="year"):
         sheet_latest = f"summary_latest_{'y' if period=='year' else 'q'}"
         write_to_sheet(sheet_latest, latest_df)
     else:
-        print(f"⚠️ Không có dữ liệu hợp lệ nào để tạo {period} summary.")
+        print(f"[!] Không có dữ liệu hợp lệ nào để tạo {period} summary.")
 
 # 6. Chạy chính (Logic ghi sheet gộp dữ liệu)
 if __name__ == "__main__":
-    print(f"🚀 Bắt đầu lấy dữ liệu cho {len(tickers)} mã: {', '.join(tickers)}")
+    print(f"[GO] Bắt đầu lấy dữ liệu cho {len(tickers)} mã: {', '.join(tickers)}")
     
     all_reports = {
         "income": [],
@@ -199,11 +199,11 @@ if __name__ == "__main__":
             final_df.columns = final_df.columns.str.lower().str.replace(' ', '_')
             write_to_sheet(rtype, final_df) 
         else:
-            print(f"⚠️ Không có dữ liệu để ghi cho báo cáo: {rtype}")
+            print(f"[!] Không có dữ liệu để ghi cho báo cáo: {rtype}")
             
     # Tạo summary toàn bộ
     print("\n*** BẮT ĐẦU TẠO SUMMARY ***")
     create_summary("year")
     create_summary("quarter")
     
-    print("\n✅ HOÀN TẤT QUY TRÌNH.")
+    print("\n[OK] HOÀN TẤT QUY TRÌNH.")

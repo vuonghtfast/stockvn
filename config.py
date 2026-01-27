@@ -27,13 +27,13 @@ def get_google_credentials():
     if "GOOGLE_CREDENTIALS" in os.environ:
         try:
             creds_dict = json.loads(os.environ["GOOGLE_CREDENTIALS"])
-            print("✅ Loaded credentials from environment variable")
+            print("[OK] Loaded credentials from environment variable")
             return ServiceAccountCredentials.from_json_keyfile_dict(
                 creds_dict,
                 ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
             )
         except Exception as e:
-            print(f"⚠️ Error loading credentials from environment: {e}")
+            print(f"[!] Error loading credentials from environment: {e}")
     
     # Try Streamlit secrets (for Streamlit Cloud)
     try:
@@ -45,17 +45,17 @@ def get_google_credentials():
             else:
                 creds_dict = dict(creds_json)
             
-            print("✅ Loaded credentials from Streamlit secrets")
+            print("[OK] Loaded credentials from Streamlit secrets")
             return ServiceAccountCredentials.from_json_keyfile_dict(
                 creds_dict,
                 ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
             )
     except (ImportError, AttributeError, KeyError) as e:
-        print(f"⚠️ Streamlit secrets not available: {e}")
+        print(f"[!] Streamlit secrets not available: {e}")
     
     # Fallback to credentials.json (for local development)
     if os.path.exists("credentials.json"):
-        print("✅ Loaded credentials from credentials.json")
+        print("[OK] Loaded credentials from credentials.json")
         return ServiceAccountCredentials.from_json_keyfile_name(
             "credentials.json",
             ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -124,14 +124,14 @@ def get_config(key=None, default=None):
                     except (ValueError, TypeError):
                         default_config[key_name] = value
             
-            print("✅ Loaded config from Google Sheets")
+            print("[OK] Loaded config from Google Sheets")
         except gspread.WorksheetNotFound:
-            print("⚠️ Sheet 'config' không tồn tại. Tạo sheet mẫu...")
+            print("[!] Sheet 'config' không tồn tại. Tạo sheet mẫu...")
             create_default_config_sheet(spreadsheet)
-            print("✅ Đã tạo sheet 'config' mẫu. Sử dụng config mặc định.")
+            print("[OK] Đã tạo sheet 'config' mẫu. Sử dụng config mặc định.")
     
     except Exception as e:
-        print(f"⚠️ Không thể đọc config từ Sheets: {e}. Sử dụng .env và defaults.")
+        print(f"[!] Không thể đọc config từ Sheets: {e}. Sử dụng .env và defaults.")
     
     # Update cache
     _config_cache = default_config
@@ -156,7 +156,7 @@ def create_default_config_sheet(spreadsheet):
             ["historical_years", "5", "Số năm lưu historical data trong SQLite"],
         ])
     except Exception as e:
-        print(f"❌ Lỗi tạo config sheet: {e}")
+        print(f"[X] Lỗi tạo config sheet: {e}")
 
 def update_config(key, value):
     """
@@ -185,15 +185,15 @@ def update_config(key, value):
         if cell:
             # Update the value in the next column
             config_sheet.update_cell(cell.row, 2, value)
-            print(f"✅ Updated config: {key} = {value}")
+            print(f"[OK] Updated config: {key} = {value}")
             
             # Invalidate cache
             _cache_timestamp = None
         else:
-            print(f"⚠️ Config key '{key}' not found in sheet")
+            print(f"[!] Config key '{key}' not found in sheet")
     
     except Exception as e:
-        print(f"❌ Lỗi cập nhật config: {e}")
+        print(f"[X] Lỗi cập nhật config: {e}")
 
 if __name__ == "__main__":
     # Test config loading

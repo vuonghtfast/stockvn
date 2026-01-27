@@ -35,7 +35,7 @@ def get_google_credentials():
         else:
             raise FileNotFoundError("No credentials found")
     except Exception as e:
-        print(f"❌ Lỗi tải credentials: {e}")
+        print(f"[X] Lỗi tải credentials: {e}")
         sys.exit(1)
 
 def send_telegram_message(message):
@@ -44,7 +44,7 @@ def send_telegram_message(message):
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
     
     if not bot_token or not chat_id:
-        print("⚠️ Telegram credentials not configured. Skipping alert.")
+        print("[!] Telegram credentials not configured. Skipping alert.")
         return False
     
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
@@ -57,13 +57,13 @@ def send_telegram_message(message):
     try:
         response = requests.post(url, json=payload, timeout=10)
         if response.status_code == 200:
-            print(f"✅ Đã gửi Telegram: {message[:50]}...")
+            print(f"[OK] Đã gửi Telegram: {message[:50]}...")
             return True
         else:
-            print(f"❌ Lỗi gửi Telegram: {response.text}")
+            print(f"[X] Lỗi gửi Telegram: {response.text}")
             return False
     except Exception as e:
-        print(f"❌ Lỗi kết nối Telegram: {e}")
+        print(f"[X] Lỗi kết nối Telegram: {e}")
         return False
 
 def calculate_average_volume(ticker, price_data, lookback_days=20):
@@ -117,7 +117,7 @@ def log_alert_history(spreadsheet, ticker, alert_type, message, triggered=True):
         ])
         
     except Exception as e:
-        print(f"⚠️ Lỗi log alert history: {e}")
+        print(f"[!] Lỗi log alert history: {e}")
 
 def update_last_alert_time(alerts_sheet, row_num):
     """Update last_alert_time for an alert rule"""
@@ -125,7 +125,7 @@ def update_last_alert_time(alerts_sheet, row_num):
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         alerts_sheet.update_cell(row_num, 5, timestamp)  # Column 5 = last_alert_time
     except Exception as e:
-        print(f"⚠️ Lỗi update last_alert_time: {e}")
+        print(f"[!] Lỗi update last_alert_time: {e}")
 
 def check_alerts():
     """Enhanced alert checking with multiple alert types"""
@@ -148,7 +148,7 @@ def check_alerts():
             alerts_sheet = spreadsheet.worksheet("alerts")
             alerts_data = alerts_sheet.get_all_records()
         except gspread.WorksheetNotFound:
-            print("⚠️ Sheet 'alerts' không tồn tại. Tạo sheet mẫu...")
+            print("[!] Sheet 'alerts' không tồn tại. Tạo sheet mẫu...")
             create_sample_alerts_sheet(spreadsheet)
             return
         
@@ -157,7 +157,7 @@ def check_alerts():
         price_data = data_sheet.get_all_records()
         
         if not price_data:
-            print("⚠️ Không có dữ liệu giá để kiểm tra.")
+            print("[!] Không có dữ liệu giá để kiểm tra.")
             return
         
         # Create price lookup dict
@@ -282,12 +282,12 @@ def check_alerts():
         if alerts_triggered:
             for ticker, alert_type, message in alerts_triggered:
                 send_telegram_message(message)
-            print(f"✅ Đã gửi {len(alerts_triggered)} cảnh báo.")
+            print(f"[OK] Đã gửi {len(alerts_triggered)} cảnh báo.")
         else:
-            print("✅ Không có cảnh báo nào được kích hoạt.")
+            print("[OK] Không có cảnh báo nào được kích hoạt.")
     
     except Exception as e:
-        print(f"❌ Lỗi kiểm tra alerts: {e}")
+        print(f"[X] Lỗi kiểm tra alerts: {e}")
         import traceback
         traceback.print_exc()
 
@@ -302,11 +302,11 @@ def create_sample_alerts_sheet(spreadsheet):
             ["FPT", "2.0", "volume_spike", "TRUE", "", "20", ""],
             ["HPG", "30000", "breakout", "TRUE", "", "", "1.5"],
         ])
-        print("✅ Đã tạo sheet 'alerts' mẫu với các loại alert nâng cao.")
+        print("[OK] Đã tạo sheet 'alerts' mẫu với các loại alert nâng cao.")
     except Exception as e:
-        print(f"❌ Lỗi tạo alerts sheet: {e}")
+        print(f"[X] Lỗi tạo alerts sheet: {e}")
 
 if __name__ == "__main__":
-    print("🔔 Bắt đầu kiểm tra alerts (Enhanced)...")
+    print("[BELL] Bắt đầu kiểm tra alerts (Enhanced)...")
     check_alerts()
-    print("✅ Hoàn tất kiểm tra alerts.")
+    print("[OK] Hoàn tất kiểm tra alerts.")

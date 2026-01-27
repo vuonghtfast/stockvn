@@ -24,7 +24,7 @@ def get_spreadsheet():
         else:
             return client.open("stockdata")
     except Exception as e:
-        print(f"[ERROR] Failed to connect to Google Sheets: {e}")
+        print(f"[X] Failed to connect to Google Sheets: {e}")
         return None
 
 def add_to_watchlist(ticker, list_type='flow', note=''):
@@ -63,7 +63,7 @@ def add_to_watchlist(ticker, list_type='flow', note=''):
         existing_df = pd.DataFrame(existing_data)
         
         if not existing_df.empty and ticker in existing_df['ticker'].values:
-            print(f"[INFO] {ticker} already in {list_type} watchlist")
+            print(f"[i] {ticker} already in {list_type} watchlist")
             return True
         
         # Lấy thông tin ngành
@@ -82,7 +82,7 @@ def add_to_watchlist(ticker, list_type='flow', note=''):
         return True
         
     except Exception as e:
-        print(f"[ERROR] Failed to add {ticker} to watchlist: {e}")
+        print(f"[X] Failed to add {ticker} to watchlist: {e}")
         return False
 
 def remove_from_watchlist(ticker, list_type='flow'):
@@ -106,7 +106,7 @@ def remove_from_watchlist(ticker, list_type='flow'):
         try:
             ws = spreadsheet.worksheet(sheet_name)
         except gspread.WorksheetNotFound:
-            print(f"[INFO] {sheet_name} not found")
+            print(f"[i] {sheet_name} not found")
             return False
         
         # Tìm và xóa row
@@ -114,7 +114,7 @@ def remove_from_watchlist(ticker, list_type='flow'):
         existing_df = pd.DataFrame(existing_data)
         
         if existing_df.empty or ticker not in existing_df['ticker'].values:
-            print(f"[INFO] {ticker} not in {list_type} watchlist")
+            print(f"[i] {ticker} not in {list_type} watchlist")
             return False
         
         # Xóa ticker
@@ -128,7 +128,7 @@ def remove_from_watchlist(ticker, list_type='flow'):
         return True
         
     except Exception as e:
-        print(f"[ERROR] Failed to remove {ticker} from watchlist: {e}")
+        print(f"[X] Failed to remove {ticker} from watchlist: {e}")
         return False
 
 def get_watchlist(list_type='flow'):
@@ -151,7 +151,7 @@ def get_watchlist(list_type='flow'):
         try:
             ws = spreadsheet.worksheet(sheet_name)
         except gspread.WorksheetNotFound:
-            print(f"[INFO] {sheet_name} not found")
+            print(f"[i] {sheet_name} not found")
             return pd.DataFrame()
         
         data = ws.get_all_records()
@@ -160,7 +160,7 @@ def get_watchlist(list_type='flow'):
         return df
         
     except Exception as e:
-        print(f"[ERROR] Failed to get watchlist: {e}")
+        print(f"[X] Failed to get watchlist: {e}")
         return pd.DataFrame()
 
 def update_watchlist_metrics(list_type='flow'):
@@ -183,13 +183,13 @@ def update_watchlist_metrics(list_type='flow'):
         try:
             ws = spreadsheet.worksheet(sheet_name)
         except gspread.WorksheetNotFound:
-            print(f"[INFO] {sheet_name} not found")
+            print(f"[i] {sheet_name} not found")
             return False
         
         watchlist_df = pd.DataFrame(ws.get_all_records())
         
         if watchlist_df.empty:
-            print(f"[INFO] {sheet_name} is empty")
+            print(f"[i] {sheet_name} is empty")
             return True
         
         if list_type == 'flow':
@@ -213,7 +213,7 @@ def update_watchlist_metrics(list_type='flow'):
                     watchlist_df['avg_flow_7d'] = watchlist_df['avg_flow_7d_new'].fillna(watchlist_df['avg_flow_7d'])
                     watchlist_df = watchlist_df.drop(columns=['avg_flow_7d_new'], errors='ignore')
             except Exception as e:
-                print(f"[WARN] Failed to update flow metrics: {e}")
+                print(f"[!] Failed to update flow metrics: {e}")
         
         else:  # fundamental
             # Cập nhật ROE, ROA, EPS, dividend_yield từ finance sheets
@@ -254,7 +254,7 @@ def update_watchlist_metrics(list_type='flow'):
                             watchlist_df.at[idx, 'eps'] = round(eps, 0)
                             # dividend_yield cần tính từ dữ liệu cổ tức (tạm thời để trống)
             except Exception as e:
-                print(f"[WARN] Failed to update fundamental metrics: {e}")
+                print(f"[!] Failed to update fundamental metrics: {e}")
         
         # Ghi lại
         ws.clear()
@@ -264,7 +264,7 @@ def update_watchlist_metrics(list_type='flow'):
         return True
         
     except Exception as e:
-        print(f"[ERROR] Failed to update watchlist metrics: {e}")
+        print(f"[X] Failed to update watchlist metrics: {e}")
         return False
 
 def merge_watchlists():

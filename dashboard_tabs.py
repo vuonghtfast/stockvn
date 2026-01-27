@@ -51,7 +51,7 @@ def get_money_flow_data():
         
         return pd.DataFrame()
     except Exception as e:
-        st.error(f"Lỗi khi lấy dữ liệu dòng tiền: {e}")
+        st.error("Lỗi khi lấy dữ liệu dòng tiền: ")
         return pd.DataFrame()
 
 def render_money_flow_tab():
@@ -69,41 +69,42 @@ def render_money_flow_tab():
                     # Run money_flow.py
                     result = subprocess.run(
                         [sys.executable, 'money_flow.py', '--interval', '15'],
-                        capture_output=True,
+                        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                         text=True,
                         timeout=300,
                         cwd='e:/Cao Phi/Code/stockvn'
                     )
                     
                     if result.returncode == 0:
-                        st.success("[OK] Cào dữ liệu thành công!")
+                        st.success("✅ Cào dữ liệu thành công!")
                         st.rerun()
                     else:
-                        st.error(f"[ERROR] Lỗi: {result.stderr}")
+                        st.error("[X] Khong the cao du lieu. Vui long thu lai sau.")
                 except subprocess.TimeoutExpired:
-                    st.error("[ERROR] Timeout sau 5 phút")
+                    st.error("[X] Timeout sau 5 phut")
                 except Exception as e:
-                    st.error(f"[ERROR] Lỗi: {e}")
+                    st.error("[X] Loi he thong")
     
     with col_btn2:
-        if st.button("📅 Lịch Sử 30 Ngày", use_container_width=True):
-            with st.spinner("🔄 Đang cào dữ liệu lịch sử..."):
+        hist_days = st.number_input("Số ngày lịch sử", min_value=7, max_value=365, value=30, step=1, key="hist_days")
+        if st.button("📅 Cào Lịch Sử", use_container_width=True):
+            with st.spinner(f"🔄 Đang cào dữ liệu {hist_days} ngày..."):
                 try:
                     result = subprocess.run(
-                        [sys.executable, 'historical_money_flow.py', '--days', '30'],
-                        capture_output=True,
+                        [sys.executable, 'historical_money_flow.py', '--days', str(hist_days)],
+                        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                         text=True,
                         timeout=600,
                         cwd='e:/Cao Phi/Code/stockvn'
                     )
                     
                     if result.returncode == 0:
-                        st.success("[OK] Cào dữ liệu lịch sử thành công!")
+                        st.success(f"✅ Đã cào {hist_days} ngày thành công!")
                         st.rerun()
                     else:
-                        st.error(f"[ERROR] Lỗi: {result.stderr}")
+                        st.error("[X] Khong the cao du lieu. Vui long thu lai sau.")
                 except Exception as e:
-                    st.error(f"[ERROR] Lỗi: {e}")
+                    st.error("[X] Loi he thong")
     
     with col_btn3:
         st.info(f"🕒 Cập nhật lần cuối: {datetime.now().strftime('%H:%M:%S')}")
@@ -260,10 +261,28 @@ def render_money_flow_tab():
         else:
             st.info("Không đủ dữ liệu hợp lệ để hiển thị biểu đồ phân tích định giá")
     except Exception as e:
-        st.error(f"Lỗi khi tạo biểu đồ: {e}")
+        st.error("Lỗi khi tạo biểu đồ: ")
 
 def render_financial_screening_tab():
     """Render tab Lọc Cổ Phiếu"""
+    
+    # Real-time mode toggle - MOVED TO TOP
+    st.markdown("### ⚡ Chế Độ Lọc")
+    col_mode1, col_mode2 = st.columns([1, 3])
+    with col_mode1:
+        realtime_mode = st.toggle("🔴 Real-time Mode", value=False, 
+                                  help="Sử dụng dữ liệu dòng tiền real-time (cập nhật mỗi 15 phút)")
+    with col_mode2:
+        if realtime_mode:
+            st.info("💡 Đang sử dụng dữ liệu dòng tiền real-time từ intraday_flow")
+            st.write("Debug: Real-time mode is ON") # Debug message
+        else:
+            st.info("💡 Đang sử dụng dữ liệu tài chính từ báo cáo định kỳ")
+            st.write("Debug: Real-time mode is OFF") # Debug message
+    
+    st.markdown("---")
+    
+    # Main header
     st.markdown('<div class="main-header">🔍 Lọc Cổ Phiếu Chất Lượng</div>', unsafe_allow_html=True)
     
     st.markdown("### 📊 Hệ Thống 10 Chỉ Tiêu Tài Chính")
@@ -294,35 +313,47 @@ def render_financial_screening_tab():
             max_ps = st.number_input("P/S <=", min_value=0.0, max_value=10.0, value=2.0, step=0.5,
                                      help="Vốn hóa/Doanh thu. Tốt: <2")
     
-    # Expander 3: Growth
-    with st.expander("📈 Tăng trưởng", expanded=False):
-        col1, col2 = st.columns(2)
-        with col1:
-            min_eps_growth = st.number_input("Tăng trưởng EPS >= (% YoY)", min_value=-100.0, max_value=500.0, value=10.0, step=1.0,
-                                             help="Tốt: ≥10%, Xuất sắc: ≥15%")
-        with col2:
-            min_revenue_growth = st.number_input("Tăng trưởng doanh thu >= (% YoY)", min_value=-100.0, max_value=500.0, value=10.0, step=1.0,
-                                                 help="Tốt: ≥10%, Xuất sắc: ≥20%")
+    # Real-time specific filters
+    if realtime_mode:
+        with st.expander("💸 Dòng Tiền (Real-time)", expanded=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                min_money_flow = st.number_input("Dòng tiền >= (Tỷ VNĐ)", min_value=0.0, value=0.5, step=0.1,
+                                                help="Dòng tiền tối thiểu (tỷ VNĐ)")
+            with col2:
+                min_price_change = st.number_input("% Thay đổi giá >=", min_value=-100.0, value=0.0, step=0.5,
+                                                  help="Phần trăm thay đổi giá tối thiểu")
     
-    # Expander 4: Financial Health
-    with st.expander("🏥 Sức khỏe tài chính", expanded=False):
-        col1, col2 = st.columns(2)
-        with col1:
-            max_debt_equity = st.number_input("Nợ/Vốn <=", min_value=0.0, max_value=10.0, value=1.0, step=0.1,
-                                              help="Tốt: <1.0 (Ngân hàng có thể <5)")
-        with col2:
-            min_current_ratio = st.number_input("Tỷ lệ thanh khoản >=", min_value=0.0, max_value=10.0, value=1.5, step=0.1,
-                                                help="Tốt: ≥1.5, Xuất sắc: ≥2.0")
-    
-    # Expander 5: Shareholder Returns
-    with st.expander("💵 Lợi ích cổ đông", expanded=False):
-        col1, col2 = st.columns(2)
-        with col1:
-            min_dividend_yield = st.number_input("Tỷ suất cổ tức >= (%)", min_value=0.0, max_value=20.0, value=3.0, step=0.5,
-                                                 help="Tốt: ≥3%, Xuất sắc: ≥5%")
-        with col2:
-            dividend_years = st.selectbox("Số năm chia cổ tức liên tục", options=[1, 2, 3, 4, 5], index=2,
-                                          help="Kiểm tra tính ổn định của cổ tức")
+    # Expander 3: Growth (only for non-realtime)
+    if not realtime_mode:
+        with st.expander("📈 Tăng trưởng", expanded=False):
+            col1, col2 = st.columns(2)
+            with col1:
+                min_eps_growth = st.number_input("Tăng trưởng EPS >= (% YoY)", min_value=-100.0, max_value=500.0, value=10.0, step=1.0,
+                                                 help="Tốt: ≥10%, Xuất sắc: ≥15%")
+            with col2:
+                min_revenue_growth = st.number_input("Tăng trưởng doanh thu >= (% YoY)", min_value=-100.0, max_value=500.0, value=10.0, step=1.0,
+                                                     help="Tốt: ≥10%, Xuất sắc: ≥20%")
+        
+        # Expander 4: Financial Health
+        with st.expander("🏥 Sức khỏe tài chính", expanded=False):
+            col1, col2 = st.columns(2)
+            with col1:
+                max_debt_equity = st.number_input("Nợ/Vốn <=", min_value=0.0, max_value=10.0, value=1.0, step=0.1,
+                                                  help="Tốt: <1.0 (Ngân hàng có thể <5)")
+            with col2:
+                min_current_ratio = st.number_input("Tỷ lệ thanh khoản >=", min_value=0.0, max_value=10.0, value=1.5, step=0.1,
+                                                    help="Tốt: ≥1.5, Xuất sắc: ≥2.0")
+        
+        # Expander 5: Shareholder Returns
+        with st.expander("💵 Lợi ích cổ đông", expanded=False):
+            col1, col2 = st.columns(2)
+            with col1:
+                min_dividend_yield = st.number_input("Tỷ suất cổ tức >= (%)", min_value=0.0, max_value=20.0, value=3.0, step=0.5,
+                                                     help="Tốt: ≥3%, Xuất sắc: ≥5%")
+            with col2:
+                dividend_years = st.selectbox("Số năm chia cổ tức liên tục", options=[1, 2, 3, 4, 5], index=2,
+                                              help="Kiểm tra tính ổn định của cổ tức")
     
     # Bộ lọc bổ sung
     col1, col2 = st.columns(2)
@@ -350,59 +381,177 @@ def render_financial_screening_tab():
     
     if st.button("🔍 Lọc cổ phiếu", type="primary", use_container_width=True):
         with st.spinner("Đang phân tích..."):
-            results = screen_by_criteria(
-                min_roe=min_roe if min_roe > 0 else None,
-                min_roa=min_roa if min_roa > 0 else None,
-                min_profit_margin=min_profit_margin if min_profit_margin > 0 else None,
-                max_pe=max_pe if max_pe > 0 else None,
-                max_pb=max_pb if max_pb > 0 else None,
-                max_ps=max_ps if max_ps > 0 else None,
-                min_eps_growth=min_eps_growth if min_eps_growth > -100 else None,
-                min_revenue_growth=min_revenue_growth if min_revenue_growth > -100 else None,
-                max_debt_equity=max_debt_equity if max_debt_equity > 0 else None,
-                min_current_ratio=min_current_ratio if min_current_ratio > 0 else None,
-                min_dividend_yield=min_dividend_yield if min_dividend_yield > 0 else None,
-                sectors_filter=selected_sectors if selected_sectors else None,
-                tickers_filter=selected_tickers if selected_tickers else None
+            if realtime_mode:
+                # Real-time filtering using money flow data
+                flow_df = get_money_flow_data()
+                
+                if flow_df.empty:
+                    st.error("❌ Không có dữ liệu dòng tiền. Vui lòng chạy money_flow.py trước.")
+                else:
+                    # Get latest data per ticker
+                    latest_df = flow_df.groupby('ticker').tail(1).reset_index(drop=True)
+                    
+                    # Apply filters
+                    filtered = latest_df[
+                        (latest_df['money_flow_normalized'] >= min_money_flow) &
+                        (latest_df['price_change_pct'] >= min_price_change) &
+                        (latest_df['pe_ratio'] <= max_pe) &
+                        (latest_df['pb_ratio'] <= max_pb) &
+                        (latest_df['ps_ratio'] <= max_ps)
+                    ]
+                    
+                    # Apply sector filter
+                    if selected_sectors:
+                        filtered = filtered[filtered['sector'].isin(selected_sectors)]
+                    
+                    # Apply ticker filter
+                    if selected_tickers:
+                        filtered = filtered[filtered['ticker'].isin(selected_tickers)]
+                    
+                    results = filtered.sort_values('money_flow_normalized', ascending=False)
+                    
+                    if not results.empty:
+                        st.success(f"✅ Tìm thấy {len(results)} mã thỏa mãn tiêu chí")
+                        
+                        # Store results in session state for export
+                        st.session_state['screening_results'] = results
+                        
+                        # Display results
+                        display_cols = ['ticker', 'sector', 'close', 'money_flow_normalized', 
+                                       'price_change_pct', 'pe_ratio', 'pb_ratio', 'ps_ratio']
+                        st.dataframe(
+                            results[display_cols].style.format({
+                                'close': '{:.2f}',
+                                'money_flow_normalized': '{:.2f}',
+                                'price_change_pct': '{:+.2f}%',
+                                'pe_ratio': '{:.1f}',
+                                'pb_ratio': '{:.2f}',
+                                'ps_ratio': '{:.2f}'
+                            }).background_gradient(subset=['money_flow_normalized'], cmap='RdYlGn'),
+                            use_container_width=True
+                        )
+                    else:
+                        st.warning("⚠️ Không tìm thấy mã nào thỏa mãn tiêu chí")
+                        st.session_state['screening_results'] = pd.DataFrame()
+            else:
+                # Traditional screening
+                results = screen_by_criteria(
+                    min_roe=min_roe if min_roe > 0 else None,
+                    min_roa=min_roa if min_roa > 0 else None,
+                    min_profit_margin=min_profit_margin if min_profit_margin > 0 else None,
+                    max_pe=max_pe if max_pe > 0 else None,
+                    max_pb=max_pb if max_pb > 0 else None,
+                    max_ps=max_ps if max_ps > 0 else None,
+                    min_eps_growth=min_eps_growth if min_eps_growth > -100 else None,
+                    min_revenue_growth=min_revenue_growth if min_revenue_growth > -100 else None,
+                    max_debt_equity=max_debt_equity if max_debt_equity > 0 else None,
+                    min_current_ratio=min_current_ratio if min_current_ratio > 0 else None,
+                    min_dividend_yield=min_dividend_yield if min_dividend_yield > 0 else None,
+                    sectors_filter=selected_sectors if selected_sectors else None,
+                    tickers_filter=selected_tickers if selected_tickers else None
+                )
+                
+                if not results.empty:
+                    st.success(f"✅ Tìm thấy {len(results)} mã thỏa mãn tiêu chí")
+                    
+                    # Store results in session state
+                    st.session_state['screening_results'] = results
+                    
+                    # Hiển thị bảng kết quả với styling
+                    st.dataframe(
+                        results[['ticker', 'sector', 'composite_score', 'roe', 'roa', 'profit_margin',
+                                 'pe', 'pb', 'ps', 'eps_growth', 'revenue_growth', 
+                                 'debt_equity', 'current_ratio', 'dividend_yield']]
+                        .style.background_gradient(subset=['composite_score'], cmap='RdYlGn')
+                        .format({
+                            'composite_score': '{:.0f}',
+                            'roe': '{:.1f}%', 'roa': '{:.1f}%', 'profit_margin': '{:.1f}%',
+                            'pe': '{:.1f}', 'pb': '{:.2f}', 'ps': '{:.2f}',
+                            'eps_growth': '{:.1f}%', 'revenue_growth': '{:.1f}%',
+                            'debt_equity': '{:.2f}', 'current_ratio': '{:.2f}',
+                            'dividend_yield': '{:.1f}%'
+                        }),
+                        use_container_width=True
+                    )
+                else:
+                    st.warning("⚠️ Không tìm thấy mã nào thỏa mãn tiêu chí. Hãy thử giảm ngưỡng lọc.")
+                    st.session_state['screening_results'] = pd.DataFrame()
+    
+    # Export section
+    if 'screening_results' in st.session_state and not st.session_state['screening_results'].empty:
+        st.markdown("---")
+        st.markdown("### 📤 Export Kết Quả")
+        
+        results_df = st.session_state['screening_results']
+        
+        # Multi-select for export
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            selected_for_export = st.multiselect(
+                "Chọn mã để export vào Watchlist",
+                options=results_df['ticker'].tolist(),
+                default=results_df['ticker'].head(5).tolist() if len(results_df) >= 5 else results_df['ticker'].tolist(),
+                help="Chọn các mã bạn muốn thêm vào danh sách theo dõi"
             )
         
-        if not results.empty:
-            st.success(f"✅ Tìm thấy {len(results)} mã thỏa mãn tiêu chí")
-            
-            # Hiển thị bảng kết quả với styling
-            st.dataframe(
-                results[['ticker', 'sector', 'composite_score', 'roe', 'roa', 'profit_margin',
-                         'pe', 'pb', 'ps', 'eps_growth', 'revenue_growth', 
-                         'debt_equity', 'current_ratio', 'dividend_yield']]
-                .style.background_gradient(subset=['composite_score'], cmap='RdYlGn')
-                .format({
-                    'composite_score': '{:.0f}',
-                    'roe': '{:.1f}%', 'roa': '{:.1f}%', 'profit_margin': '{:.1f}%',
-                    'pe': '{:.1f}', 'pb': '{:.2f}', 'ps': '{:.2f}',
-                    'eps_growth': '{:.1f}%', 'revenue_growth': '{:.1f}%',
-                    'debt_equity': '{:.2f}', 'current_ratio': '{:.2f}',
-                    'dividend_yield': '{:.1f}%'
-                }),
-                use_container_width=True
-            )
-            
-            # Nút thêm vào watchlist
-            st.markdown("### ➕ Thêm vào danh sách theo dõi")
-            for idx, row in results.head(10).iterrows():
-                col1, col2, col3 = st.columns([2, 6, 2])
-                with col1:
-                    st.write(f"**{row['ticker']}**")
-                with col2:
-                    st.write(f"Điểm: {row['composite_score']:.0f} | ROE: {row['roe']:.1f}% | P/E: {row['pe']:.1f}")
-                with col3:
-                    if st.button(f"➕ Thêm", key=f"add_fund_{row['ticker']}"):
-                        if add_to_watchlist(row['ticker'], 'fundamental'):
-                            st.success(f"✅ Đã thêm {row['ticker']}")
-                        else:
-                            st.error(f"❌ Lỗi khi thêm {row['ticker']}")
-        else:
-            st.warning("⚠️ Không tìm thấy mã nào thỏa mãn tiêu chí. Hãy thử giảm ngưỡng lọc.")
-
+        with col2:
+            if st.button("📊 Export to Sheets", type="primary", use_container_width=True, disabled=len(selected_for_export) == 0):
+                if selected_for_export:
+                    with st.spinner(f"Đang export {len(selected_for_export)} mã..."):
+                        try:
+                            # Get spreadsheet
+                            creds = get_google_credentials()
+                            client = gspread.authorize(creds)
+                            spreadsheet_id = os.getenv("SPREADSHEET_ID")
+                            if spreadsheet_id:
+                                spreadsheet = client.open_by_key(spreadsheet_id)
+                            else:
+                                spreadsheet = client.open("stockdata")
+                            
+                            # Get or create watchlist sheet
+                            try:
+                                watchlist_ws = spreadsheet.worksheet("watchlist")
+                            except:
+                                watchlist_ws = spreadsheet.add_worksheet(title="watchlist", rows=1000, cols=10)
+                                watchlist_ws.update('A1:F1', [['ticker', 'added_date', 'source', 'note', 'pe', 'pb']])
+                            
+                            # Get existing data
+                            existing_data = watchlist_ws.get_all_records()
+                            existing_tickers = [row['ticker'] for row in existing_data] if existing_data else []
+                            
+                            # Prepare new rows
+                            new_rows = []
+                            added_count = 0
+                            skipped_count = 0
+                            
+                            for ticker in selected_for_export:
+                                if ticker not in existing_tickers:
+                                    ticker_data = results_df[results_df['ticker'] == ticker].iloc[0]
+                                    new_row = [
+                                        ticker,
+                                        datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                        'realtime_screening' if realtime_mode else 'financial_screening',
+                                        f"Auto-added from screening",
+                                        float(ticker_data.get('pe_ratio', ticker_data.get('pe', 0))),
+                                        float(ticker_data.get('pb_ratio', ticker_data.get('pb', 0)))
+                                    ]
+                                    new_rows.append(new_row)
+                                    added_count += 1
+                                else:
+                                    skipped_count += 1
+                            
+                            # Append new rows
+                            if new_rows:
+                                watchlist_ws.append_rows(new_rows)
+                            
+                            if added_count > 0:
+                                st.success(f"✅ Đã thêm {added_count} mã vào watchlist!")
+                            if skipped_count > 0:
+                                st.info(f"ℹ️ Bỏ qua {skipped_count} mã đã có trong watchlist")
+                            
+                        except Exception as e:
+                            st.error("❌ Lỗi khi export: ")
+                            import traceback
 def render_watchlist_tab():
     """Render tab Danh Sách Theo Dõi"""
     st.markdown('<div class="main-header">📋 Danh Sách Theo Dõi</div>', unsafe_allow_html=True)

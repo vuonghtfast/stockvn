@@ -2,22 +2,22 @@ name: Update Money Flow
 on:
   schedule:
     # Vietnam timezone: ICT = UTC+7
-    # Phiên sáng: 9:30-11:15 ICT = 2:30-4:15 UTC (mỗi 15 phút)
+    # Phien sang: 9:30-11:30 ICT = 2:30-4:30 UTC (moi 20 phut)
     - cron: '30 2 * * 1-5'    # 9:30 ICT
-    - cron: '45 2 * * 1-5'    # 9:45 ICT
-    - cron: '0 3 * * 1-5'     # 10:00 ICT
-    - cron: '15 3 * * 1-5'    # 10:15 ICT
+    - cron: '50 2 * * 1-5'    # 9:50 ICT
+    - cron: '10 3 * * 1-5'    # 10:10 ICT
     - cron: '30 3 * * 1-5'    # 10:30 ICT
-    - cron: '45 3 * * 1-5'    # 10:45 ICT
-    - cron: '0 4 * * 1-5'     # 11:00 ICT
-    - cron: '15 4 * * 1-5'    # 11:15 ICT
+    - cron: '50 3 * * 1-5'    # 10:50 ICT
+    - cron: '10 4 * * 1-5'    # 11:10 ICT
     
-    # Phiên chiều: 13:30-14:30 ICT = 6:30-7:30 UTC (mỗi 15 phút)
-    - cron: '30 6 * * 1-5'    # 13:30 ICT
-    - cron: '45 6 * * 1-5'    # 13:45 ICT
+    # Phien chieu: 13:00-15:00 ICT = 6:00-8:00 UTC (moi 20 phut)
+    - cron: '0 6 * * 1-5'     # 13:00 ICT
+    - cron: '20 6 * * 1-5'    # 13:20 ICT
+    - cron: '40 6 * * 1-5'    # 13:40 ICT
     - cron: '0 7 * * 1-5'     # 14:00 ICT
-    - cron: '15 7 * * 1-5'    # 14:15 ICT
-    - cron: '30 7 * * 1-5'    # 14:30 ICT
+    - cron: '20 7 * * 1-5'    # 14:20 ICT
+    - cron: '40 7 * * 1-5'    # 14:40 ICT
+    - cron: '0 8 * * 1-5'     # 15:00 ICT (dong cua)
   workflow_dispatch:  # Allow manual trigger
 
 jobs:
@@ -36,7 +36,7 @@ jobs:
         run: pip install -r requirements.txt
       
       - name: Run money flow tracker
-        run: python money_flow.py --interval 15
+        run: python money_flow.py --interval 20
         env:
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}

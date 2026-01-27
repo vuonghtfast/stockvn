@@ -14,7 +14,7 @@ elif page == "⚙️ Settings":
         spreadsheet = get_spreadsheet()
         current_tickers = get_current_tickers(spreadsheet)
     except Exception as e:
-        st.error(f"Lỗi kết nối Google Sheets: {e}")
+        st.error("Lỗi kết nối Google Sheets: ")
         current_tickers = []
     
     # Display current tickers

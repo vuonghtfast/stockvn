@@ -44,16 +44,16 @@ try:
     
     print(f"[OK] Connected to Google Sheets: {spreadsheet.title}")
 except Exception as e:
-    print(f"[ERROR] Failed to connect to Google Sheets: {e}")
+    print(f"[X] Failed to connect to Google Sheets: {e}")
     sys.exit(1)
 
 # Get tickers
 try:
     tickers_sheet = spreadsheet.worksheet("tickers")
     tickers = tickers_sheet.col_values(1)[1:]  # Skip header
-    print(f"[INFO] Tracking {len(tickers)} tickers")
+    print(f"[i] Tracking {len(tickers)} tickers")
 except Exception as e:
-    print(f"[ERROR] Failed to read tickers: {e}")
+    print(f"[X] Failed to read tickers: {e}")
     sys.exit(1)
 
 # Initialize vnstock
@@ -68,7 +68,7 @@ else:
     end_date = datetime.now()
     start_date = end_date - timedelta(days=args.days)
 
-print(f"\n[INFO] Cào dữ liệu từ {start_date.strftime('%Y-%m-%d')} đến {end_date.strftime('%Y-%m-%d')}")
+print(f"\n[i] Cào dữ liệu từ {start_date.strftime('%Y-%m-%d')} đến {end_date.strftime('%Y-%m-%d')}")
 
 # Hàm tính dòng tiền cho 1 mã trong khoảng thời gian
 def calculate_historical_money_flow(ticker, start_date, end_date):
@@ -115,7 +115,7 @@ def calculate_historical_money_flow(ticker, start_date, end_date):
         
         return results
     except Exception as e:
-        print(f"[ERROR] {ticker}: {e}")
+        print(f"[X] {ticker}: {e}")
         return None
 
 # Main logic
@@ -133,13 +133,13 @@ for idx, ticker in enumerate(tickers, 1):
         print("No data")
 
 if not all_data:
-    print("[ERROR] No data collected")
+    print("[X] No data collected")
     sys.exit(1)
 
 # Tạo DataFrame
 df = pd.DataFrame(all_data)
 
-print(f"\n[INFO] Collected {len(df)} records")
+print(f"\n[i] Collected {len(df)} records")
 
 # Lưu vào historical_flow sheet
 try:
@@ -167,7 +167,7 @@ try:
     hist_ws.update([combined_df.columns.values.tolist()] + combined_df.astype(str).values.tolist())
     print(f"\n[OK] Saved {len(df)} new records to historical_flow (total: {len(combined_df)})")
 except Exception as e:
-    print(f"[ERROR] Failed to save data: {e}")
+    print(f"[X] Failed to save data: {e}")
 
 # Tạo daily summary
 try:
@@ -204,9 +204,9 @@ try:
     print(f"[OK] Updated historical_flow_summary")
     
 except Exception as e:
-    print(f"[ERROR] Failed to create summary: {e}")
+    print(f"[X] Failed to create summary: {e}")
 
 print("\n[DONE] Historical money flow collection complete!")
-print(f"\n💡 Tip: Bạn có thể xem dữ liệu trong sheets:")
+print(f"\n[i] Tip: Bạn có thể xem dữ liệu trong sheets:")
 print(f"   - historical_flow: Dữ liệu chi tiết theo ngày")
 print(f"   - historical_flow_summary: Tổng hợp theo ngành")

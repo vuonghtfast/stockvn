@@ -78,7 +78,7 @@ def get_google_credentials():
         else:
             raise FileNotFoundError("No credentials found")
     except Exception as e:
-        print(f"❌ Lỗi tải credentials: {e}")
+        print(f"[X] Lỗi tải credentials: {e}")
         sys.exit(1)
 
 creds = get_google_credentials()
@@ -100,17 +100,17 @@ all_tickers = tickers_sheet.col_values(1)[1:]  # Skip header
 # Filter tickers if specified
 if args.tickers:
     tickers = [t.strip().upper() for t in args.tickers.split(',')]
-    print(f"[INFO] Using tickers from command line: {tickers}")
+    print(f"[i] Using tickers from command line: {tickers}")
 else:
     tickers = all_tickers
-    print(f"[INFO] Using all tickers from sheet: {len(tickers)} tickers")
+    print(f"[i] Using all tickers from sheet: {len(tickers)} tickers")
 
 # Get or create price sheet
 try:
     price_sheet = spreadsheet.worksheet("price")
     print(f"[OK] Found sheet 'price'")
 except gspread.WorksheetNotFound:
-    print("[WARN] Sheet 'price' not found. Creating...")
+    print("[!] Sheet 'price' not found. Creating...")
     price_sheet = spreadsheet.add_worksheet(title="price", rows="50000", cols="15")
     print("[OK] Created sheet 'price'")
 
@@ -122,9 +122,9 @@ cleanup_removed_tickers(spreadsheet, tickers, ['price', 'price_history'])
 api_key = os.getenv("VNSTOCK_API_KEY")
 if api_key:
     # vnstock reads API key from environment variable automatically
-    print("[INFO] Using vnstock with API key (60 req/min)")
+    print("[i] Using vnstock with API key (60 req/min)")
 else:
-    print("[WARN] Using vnstock without API key (20 req/min). Register at https://vnstocks.com/login")
+    print("[!] Using vnstock without API key (20 req/min). Register at https://vnstocks.com/login")
 
 # Initialize vnstock (it will use API key from environment if available)
 vs = Vnstock()
@@ -176,8 +176,8 @@ if all_data:
     extra_cols = [c for c in final_df.columns if c not in cols]
     final_df = final_df[cols + extra_cols]
     
-    print(f"[INFO] Total records: {len(final_df)}")
-    print(f"[INFO] From {final_df['date'].min()} to {final_df['date'].max()}")
+    print(f"[i] Total records: {len(final_df)}")
+    print(f"[i] From {final_df['date'].min()} to {final_df['date'].max()}")
     
     # Convert to string for Google Sheets
     final_df = final_df.astype(str)
@@ -211,4 +211,4 @@ if all_data:
     print(f"  - Period: {final_df['date'].min()} -> {final_df['date'].max()}")
     
 else:
-    print(f"[ERROR] No data fetched")
+    print(f"[X] No data fetched")
