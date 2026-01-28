@@ -1,0 +1,15 @@
+Fixed 14 files:
+  - backtest_breakout.py
+  - cleanup_helper.py
+  - clear_cache.py
+  - data_aggregator.py
+  - data_archiver.py
+  - finance.py
+  - financial_screening.py
+  - historical_money_flow.py
+  - money_flow.py
+  - remove_emojis.py
+  - restore_emojis.py
+  - stock_screener.py
+  - test_features.py
+  - vnindex_fetcher.py

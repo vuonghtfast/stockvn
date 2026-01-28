@@ -16,7 +16,7 @@ old_pattern = """        return pd.DataFrame()
 
 new_pattern = """        return pd.DataFrame()
     except Exception as e:
-        st.error(f"Lỗi khi lấy dữ liệu dòng tiền: {e}")
+        st.error("Lỗi khi lấy dữ liệu dòng tiền: ")
         return pd.DataFrame()
 
 # ===== Tab Render Functions ====="""
