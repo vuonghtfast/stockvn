@@ -313,9 +313,13 @@ def get_money_flow_top():
             negative_sectors = flow_df[flow_df['type'] == 'sector_negative'].copy()
             
             return stocks_df, positive_sectors, negative_sectors
-        except:
+        except Exception as e:
+            # st.error(f"Lỗi đọc sheet money_flow_top: {e}") # Uncomment for debugging
+            print(f"[ERROR] get_money_flow_top inner: {e}")
             return None, None, None
-    except:
+    except Exception as e:
+        # st.error(f"Lỗi kết nối Google Sheets: {e}") # Uncomment for debugging
+        print(f"[ERROR] get_money_flow_top outer: {e}")
         return None, None, None
 
 
@@ -1799,6 +1803,15 @@ elif page == "⚙️ Settings":
     st.markdown('<div class="main-header">⚙️ Cài Đặt Hệ Thống</div>', unsafe_allow_html=True)
     
     st.subheader("📊 Cào Dữ Liệu Giá Chứng Khoán")
+    
+    # System Maintenance
+    with st.expander("🛠️ Bảo Trì Hệ Thống (Cache & Debug)"):
+        if st.button("🗑️ Xóa Cache Dashboard", type="secondary", use_container_width=True):
+            st.cache_data.clear()
+            st.cache_resource.clear()
+            st.success("✅ Đã xóa cache! Vui lòng reload trang (F5) để thấy dữ liệu mới.")
+    
+    st.markdown("---")
     
     st.info("💡 **Hướng dẫn**: Chọn tham số và nhấn 'Cào Dữ Liệu' để lấy dữ liệu từ vnstock vào Google Sheets")
     
