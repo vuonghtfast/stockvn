@@ -628,18 +628,136 @@ def render_financial_screening_tab():
 
 
 def render_watchlist_tab():
-    """Render tab Danh Sách Theo Dõi"""
+    """Render tab Danh Sách Theo Dõi - Enhanced with flow trend chart"""
     st.markdown('<div class="main-header">📋 Danh Sách Theo Dõi</div>', unsafe_allow_html=True)
     
     tab1, tab2 = st.tabs(["💰 Dòng Tiền", "📊 Cơ Bản"])
     
     with tab1:
         st.markdown("### 💰 Danh Sách Theo Dõi Dòng Tiền")
+        st.caption("Các mã được thêm từ phân tích Giao dịch mua-bán")
         
         flow_watchlist = get_watchlist('flow')
         
+        # Add new stock section
+        with st.expander("➕ Thêm Mã Mới"):
+            add_col1, add_col2 = st.columns([3, 1])
+            with add_col1:
+                new_ticker = st.text_input("Nhập mã cổ phiếu", placeholder="VNM", key="add_new_flow_ticker")
+            with add_col2:
+                st.write("")
+                st.write("")
+                if st.button("➕ Thêm", key="btn_add_flow"):
+                    if new_ticker.strip():
+                        if add_to_watchlist(new_ticker.strip().upper(), 'flow'):
+                            st.success(f"✅ Đã thêm {new_ticker.upper()}")
+                            st.rerun()
+                        else:
+                            st.error("❌ Lỗi khi thêm")
+                    else:
+                        st.warning("Vui lòng nhập mã")
+        
         if not flow_watchlist.empty:
-            st.dataframe(flow_watchlist, use_container_width=True)
+            # Display current data with delete buttons
+            st.markdown("#### 📊 Danh mục hiện tại")
+            
+            for idx, row in flow_watchlist.iterrows():
+                ticker = row.get('ticker', 'N/A') if isinstance(row, pd.Series) else row
+                
+                with st.container():
+                    col1, col2, col3 = st.columns([2, 6, 2])
+                    
+                    with col1:
+                        st.markdown(f"**{ticker}**")
+                    
+                    with col2:
+                        # Display current metrics if available
+                        if isinstance(row, pd.Series):
+                            flow = row.get('money_flow', 0)
+                            price = row.get('price', 0)
+                            change = row.get('change_pct', 0)
+                            if flow or price:
+                                st.caption(f"💰 Dòng tiền: {flow:.2f}B | Giá: {price:,.1f}K | Δ: {change:+.2f}%")
+                            else:
+                                st.caption("Chưa có dữ liệu")
+                        else:
+                            st.caption("Đang tải...")
+                    
+                    with col3:
+                        if st.button("🗑️", key=f"del_flow_{idx}_{ticker}", help=f"Xóa {ticker}"):
+                            # Delete from watchlist
+                            try:
+                                creds = get_google_credentials()
+                                client = gspread.authorize(creds)
+                                spreadsheet = client.open("Stock_Data_Storage")
+                                ws = spreadsheet.worksheet("watchlist_flow")
+                                all_data = ws.get_all_records()
+                                df = pd.DataFrame(all_data)
+                                if not df.empty and 'ticker' in df.columns:
+                                    df = df[df['ticker'] != ticker]
+                                    ws.clear()
+                                    ws.update([df.columns.values.tolist()] + df.values.tolist())
+                                    st.success(f"✅ Đã xóa {ticker}")
+                                    st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Lỗi: {str(e)}")
+                
+                st.markdown("---")
+            
+            # Flow trend chart - last 7 days
+            st.markdown("#### 📈 Biểu Đồ Dòng Tiền 1 Tuần")
+            st.caption("Xu hướng dòng tiền của các mã trong danh mục (7 ngày gần nhất)")
+            
+            try:
+                # Get historical flow data
+                creds = get_google_credentials()
+                client = gspread.authorize(creds)
+                spreadsheet_id = os.getenv("SPREADSHEET_ID")
+                if spreadsheet_id:
+                    spreadsheet = client.open_by_key(spreadsheet_id)
+                else:
+                    spreadsheet = client.open("stockdata")
+                
+                try:
+                    flow_ws = spreadsheet.worksheet("intraday_flow")
+                    flow_data = flow_ws.get_all_records()
+                    flow_df = pd.DataFrame(flow_data)
+                    
+                    if not flow_df.empty:
+                        # Get tickers from watchlist
+                        wl_tickers = flow_watchlist['ticker'].tolist() if 'ticker' in flow_watchlist.columns else []
+                        
+                        if wl_tickers and 'ticker' in flow_df.columns:
+                            # Filter for watchlist tickers
+                            wl_flow = flow_df[flow_df['ticker'].isin(wl_tickers)]
+                            
+                            if not wl_flow.empty and 'timestamp' in wl_flow.columns:
+                                wl_flow['timestamp'] = pd.to_datetime(wl_flow['timestamp'], errors='coerce')
+                                wl_flow['money_flow_normalized'] = pd.to_numeric(wl_flow['money_flow_normalized'], errors='coerce')
+                                
+                                # Last 7 days
+                                cutoff = datetime.now() - timedelta(days=7)
+                                recent = wl_flow[wl_flow['timestamp'] >= cutoff]
+                                
+                                if not recent.empty:
+                                    fig = px.line(
+                                        recent,
+                                        x='timestamp',
+                                        y='money_flow_normalized',
+                                        color='ticker',
+                                        title="Xu hướng Dòng Tiền 7 Ngày",
+                                        labels={'money_flow_normalized': 'Dòng Tiền (Tỷ VNĐ)', 'timestamp': 'Thời gian'}
+                                    )
+                                    fig.update_layout(height=400)
+                                    st.plotly_chart(fig, use_container_width=True)
+                                else:
+                                    st.info("Chưa có dữ liệu 7 ngày gần đây")
+                            else:
+                                st.info("Chưa có dữ liệu dòng tiền cho các mã trong danh mục")
+                except Exception as e:
+                    st.info("Chưa có dữ liệu biểu đồ")
+            except Exception as e:
+                st.info("Không thể tải dữ liệu biểu đồ")
             
             if st.button("🔄 Cập nhật dòng tiền", key="update_flow"):
                 with st.spinner("Đang cập nhật..."):
@@ -647,7 +765,7 @@ def render_watchlist_tab():
                     st.success("✅ Đã cập nhật!")
                     st.rerun()
         else:
-            st.info("📝 Danh sách trống. Thêm mã từ tab Dòng Tiền.")
+            st.info("📝 Danh sách trống. Thêm mã từ menu Giao dịch mua-bán hoặc nhập ở trên.")
     
     with tab2:
         st.markdown("### 📊 Danh Sách Theo Dõi Cơ Bản")
@@ -688,12 +806,12 @@ with st.sidebar:
     
     # Auto-refresh settings
     st.markdown("### ⚙️ Cài Đặt")
-    auto_refresh = st.checkbox("🔄 Auto-refresh", value=False, help="Tự động làm mới dữ liệu")
+    auto_refresh = st.checkbox("🔄 Auto-refresh", value=True, help="Tự động làm mới dữ liệu mỗi 20 phút")
     refresh_interval = st.slider(
         "Refresh mỗi (phút)",
         min_value=5,
-        max_value=30,
-        value=5,
+        max_value=60,
+        value=20,
         step=5,
         disabled=not auto_refresh
     )
@@ -702,7 +820,7 @@ with st.sidebar:
     
     page = st.radio(
         "📍 Navigation",
-        ["🏠 Dashboard", "📊 Phân Tích", "💰 Báo Cáo Tài Chính", "💸 Dòng Tiền", "🔍 Lọc Cổ Phiếu", "📋 Danh Sách Theo Dõi", "🌐 Khuyến Nghị", "🔬 Backtest", "⚙️ Settings"],
+        ["🏠 Dashboard", "📊 Phân Tích", "💰 Báo Cáo Tài Chính", "💸 Giao dịch mua-bán", "🔍 Lọc Cổ Phiếu", "📋 Danh Sách Theo Dõi", "🌐 Khuyến Nghị", "🔬 Backtest", "⚙️ Hệ thống"],
         label_visibility="collapsed"
     )
 
@@ -738,63 +856,88 @@ if page == "🏠 Dashboard":
     
     if (positive_sectors is not None and not positive_sectors.empty) or \
        (negative_sectors is not None and not negative_sectors.empty):
-        # Top 3 sectors with POSITIVE flow (with stocks)
-        if positive_sectors is not None and not positive_sectors.empty:
-            st.markdown("### 📈 Top 3 Ngành Dòng Tiền MUA Mạnh Nhất")
-            
-            col1, col2, col3 = st.columns(3)
-            for idx, (col, row) in enumerate(zip([col1, col2, col3], positive_sectors.head(3).itertuples())):
-                with col:
-                    st.metric(
-                        f"#{idx+1} {row.sector}",
-                        f"+{row.net_flow:,.2f}B VNĐ",
-                        f"Mua: {row.buy_flow:,.1f}B | Bán: {row.sell_flow:,.1f}B"
-                    )
-            
-            st.markdown("---")
-        
-        # Top 9 stocks (3 per sector)
-        if stocks_df is not None and not stocks_df.empty:
-            st.markdown("### 🔥 Top 9 Cổ Phiếu Dòng Tiền MUA Mạnh Nhất")
-            st.markdown("*(3 cổ phiếu mỗi ngành)*")
-            
-            # Display in 3 columns per row
-            for i in range(0, min(9, len(stocks_df)), 3):
-                cols = st.columns(3)
-                for j, col in enumerate(cols):
-                    if i + j < len(stocks_df):
-                        row = stocks_df.iloc[i + j]
-                        with col:
-                            st.metric(
-                                f"{row['ticker']}",
-                                f"+{row['net_flow']:,.2f}B VNĐ",
-                                f"Giá: {row['price']:,.1f}K",
-                                delta_color="normal"
-                            )
-                            st.caption(f"Ngành: {row['sector']}")
-            
-            st.markdown("---")
-        
-        # Top 3 sectors with NEGATIVE flow (sectors only, no stocks)
-        if negative_sectors is not None and not negative_sectors.empty:
-            st.markdown("### 📉 Top 3 Ngành Dòng Tiền BÁN Mạnh Nhất")
-            st.markdown("*(Chỉ hiển thị ngành, không chi tiết cổ phiếu)*")
-            
-            col1, col2, col3 = st.columns(3)
-            for idx, (col, row) in enumerate(zip([col1, col2, col3], negative_sectors.head(3).itertuples())):
-                with col:
-                    st.metric(
-                        f"#{idx+1} {row.sector}",
-                        f"{row.net_flow:,.2f}B VNĐ",
-                        f"Mua: {row.buy_flow:,.1f}B | Bán: {row.sell_flow:,.1f}B",
-                        delta_color="inverse"
-                    )
-            
-            st.markdown("---")
         
         # Timestamp
-        if not stocks_df.empty and 'timestamp' in stocks_df.columns:
-            st.caption(f"Cap nhat luc: {stocks_df['timestamp'].iloc[0]}")
+        if stocks_df is not None and not stocks_df.empty and 'timestamp' in stocks_df.columns:
+            st.caption(f"🕐 Cập nhật lúc: {stocks_df['timestamp'].iloc[0]}")
+        
+        # ===== Charts Section (Only Charts, No Metric Cards) =====
+        
+        # Chart 1: Sector bar chart with buy/sell flow
+        if positive_sectors is not None and not positive_sectors.empty:
+            fig_sectors = go.Figure()
+            
+            pos_sectors_top3 = positive_sectors.head(3)
+            
+            # Add buy flow bars
+            fig_sectors.add_trace(go.Bar(
+                name='Dòng tiền MUA (B)',
+                x=pos_sectors_top3['sector'].tolist(),
+                y=pos_sectors_top3['buy_flow'].tolist(),
+                marker_color='#26a69a',
+                text=[f"{v:.1f}B" for v in pos_sectors_top3['buy_flow'].tolist()],
+                textposition='outside'
+            ))
+            
+            # Add sell flow bars
+            fig_sectors.add_trace(go.Bar(
+                name='Dòng tiền BÁN (B)',
+                x=pos_sectors_top3['sector'].tolist(),
+                y=pos_sectors_top3['sell_flow'].tolist(),
+                marker_color='#ef5350',
+                text=[f"{v:.1f}B" for v in pos_sectors_top3['sell_flow'].tolist()],
+                textposition='outside'
+            ))
+            
+            fig_sectors.update_layout(
+                title="Dòng Tiền Mua-Bán Theo Ngành (Top 3 Mua Mạnh)",
+                xaxis_title="Ngành",
+                yaxis_title="Giá trị (Tỷ VNĐ)",
+                barmode='group',
+                height=400,
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
+            st.plotly_chart(fig_sectors, use_container_width=True)
+        
+        # Chart 2: Top 9 stocks with value and volume
+        if stocks_df is not None and not stocks_df.empty:
+            top9 = stocks_df.head(9)
+            
+            # Create dual-axis chart
+            fig_stocks = go.Figure()
+            
+            # Add net flow bars (primary y-axis)
+            fig_stocks.add_trace(go.Bar(
+                name='Dòng tiền ròng (B)',
+                x=top9['ticker'].tolist(),
+                y=top9['net_flow'].tolist(),
+                marker_color=['#26a69a' if v > 0 else '#ef5350' for v in top9['net_flow'].tolist()],
+                text=[f"{v:.2f}B" for v in top9['net_flow'].tolist()],
+                textposition='outside',
+                yaxis='y'
+            ))
+            
+            # Add volume line (secondary y-axis)
+            fig_stocks.add_trace(go.Scatter(
+                name='Khối lượng',
+                x=top9['ticker'].tolist(),
+                y=top9['volume'].tolist(),
+                mode='lines+markers',
+                line=dict(color='#ff9800', width=2),
+                marker=dict(size=8),
+                yaxis='y2'
+            ))
+            
+            fig_stocks.update_layout(
+                title="Top 9 Cổ Phiếu Mua Mạnh - Giá Trị & Khối Lượng",
+                xaxis_title="Mã cổ phiếu",
+                yaxis=dict(title="Dòng tiền ròng (Tỷ VNĐ)", side='left'),
+                yaxis2=dict(title="Khối lượng", side='right', overlaying='y'),
+                height=450,
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                hovermode='x unified'
+            )
+            st.plotly_chart(fig_stocks, use_container_width=True)
         
     else:
         st.warning("Chua co du lieu dong tien. Vui long chay `python money_flow.py` de cap nhat.")
@@ -802,11 +945,29 @@ if page == "🏠 Dashboard":
 
 elif page == "📊 Phân Tích":
     st.markdown('<div class="main-header">📊 Phân Tích Kỹ Thuật</div>', unsafe_allow_html=True)
+    st.caption("Lấy mã từ Danh Sách Theo Dõi. Có thể chọn tất cả nếu muốn.")
     
-    tickers = fetch_ticker_list()
+    # Get watchlist tickers first
+    flow_watchlist = get_watchlist('flow')
+    watchlist_tickers = flow_watchlist['ticker'].tolist() if not flow_watchlist.empty and 'ticker' in flow_watchlist.columns else []
+    all_tickers = fetch_ticker_list()
+    
+    # Stock source selection
+    col_src1, col_src2 = st.columns([1, 3])
+    with col_src1:
+        use_watchlist = st.checkbox("📋 Từ Danh mục", value=True, help="Chỉ hiển thị mã trong Danh Sách Theo Dõi")
+    
+    # Determine ticker list
+    available_tickers = watchlist_tickers if use_watchlist and watchlist_tickers else all_tickers
+    
+    if not available_tickers:
+        st.warning("Chưa có mã nào trong Danh Sách Theo Dõi. Vui lòng thêm mã từ menu Giao dịch mua-bán.")
+        available_tickers = all_tickers
+    
     col1, col2, col3 = st.columns([2, 1, 1])
     with col1:
-        ta_symbol = st.selectbox("Mã chứng khoán", options=tickers, key="ta_symbol", index=0 if "VNM" not in tickers else tickers.index("VNM"))
+        default_idx = 0
+        ta_symbol = st.selectbox("Mã chứng khoán", options=available_tickers, key="ta_symbol", index=default_idx)
     with col2:
         period_options = {
             "1 Tuần": 7,
@@ -1205,9 +1366,154 @@ elif page == "💰 Báo Cáo Tài Chính":
                     st.info("💡 Đảm bảo bạn đã chạy script `finance.py` để cập nhật dữ liệu vào Google Sheets.")
             else:
                 st.info("💡 Chưa có dữ liệu tài chính. Vui lòng chạy `finance.py` hoặc kiểm tra kết nối Sheets.")
+    
+    # ===== Finance Scraper Section =====
+    st.markdown("---")
+    st.subheader("📥 Cào Dữ Liệu Báo Cáo Tài Chính")
+    st.info("💡 Cào dữ liệu báo cáo tài chính (Income, Balance, Cashflow) từ vnstock")
+    
+    # Filter options - Row 1
+    fin_scr_col1, fin_scr_col2, fin_scr_col3 = st.columns(3)
+    
+    with fin_scr_col1:
+        fin_scr_period = st.selectbox(
+            "📅 Loại báo cáo",
+            options=["quarter", "annual"],
+            format_func=lambda x: "Theo Quý" if x == "quarter" else "Theo Năm",
+            key="fin_scr_period"
+        )
+    
+    with fin_scr_col2:
+        fin_scr_years = st.selectbox(
+            "📆 Số năm cần cào",
+            options=[1, 2, 3, 4, 5],
+            index=2,  # Default 3 years
+            help="Số năm dữ liệu cần cào (1-5 năm)",
+            key="fin_scr_years"
+        )
+    
+    with fin_scr_col3:
+        fin_scr_tickers_input = st.text_input(
+            "🔍 Mã cổ phiếu (để trống = tất cả)",
+            placeholder="VNM, FPT, VCB",
+            help="Nhập các mã cách nhau bởi dấu phẩy.",
+            key="fin_scr_tickers"
+        )
+    
+    # Sector filter - Row 2
+    all_sectors = get_all_sectors()
+    fin_scr_selected_sectors = st.multiselect(
+        "🏭 Lọc theo ngành (bỏ trống = tất cả ngành)",
+        options=all_sectors,
+        help="Chọn các ngành muốn cào. Bỏ trống để cào tất cả ngành.",
+        key="fin_scr_sectors"
+    )
+    
+    # Scrape button
+    if st.button("📋 Cào Báo Cáo Tài Chính", use_container_width=True, type="primary", key="btn_fin_scrape"):
+        with st.spinner("Đang cào báo cáo tài chính..."):
+            try:
+                import subprocess
+                
+                # Build command with filters
+                cmd = [sys.executable, 'finance.py', '--period', fin_scr_period, '--years', str(fin_scr_years)]
+                
+                # Add ticker filter
+                if fin_scr_tickers_input.strip():
+                    cmd.extend(['--tickers', fin_scr_tickers_input.strip()])
+                
+                # Add sector filter - get tickers from selected sectors
+                if fin_scr_selected_sectors and not fin_scr_tickers_input.strip():
+                    from sectors import get_tickers_by_sector
+                    sector_tickers = []
+                    for sector in fin_scr_selected_sectors:
+                        sector_tickers.extend(get_tickers_by_sector(sector))
+                    if sector_tickers:
+                        cmd.extend(['--tickers', ','.join(set(sector_tickers))])
+                
+                result = subprocess.run(
+                    cmd,
+                    stdout=subprocess.PIPE, 
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    encoding='utf-8',
+                    errors='replace',
+                    env={**os.environ, 'PYTHONIOENCODING': 'utf-8'},
+                    timeout=1800
+                )
+                if result.returncode == 0:
+                    st.success("✅ Hoàn tất cào báo cáo tài chính!")
+                    st.balloons()
+                    if result.stdout:
+                        with st.expander("📄 Chi tiết"):
+                            st.code(result.stdout[-2000:])
+                else:
+                    st.error(f"❌ Lỗi khi cào báo cáo tài chính (Exit code: {result.returncode})")
+                    if result.stderr:
+                        st.code(result.stderr)
+            except subprocess.TimeoutExpired:
+                st.error("⏰ Lỗi: Quá thời gian chờ (Timeout 30 phút)")
+            except Exception as e:
+                st.error(f"❌ Lỗi hệ thống: {str(e)}")
+    
+    # ===== Delete Finance Data Section =====
+    st.markdown("---")
+    st.subheader("🗑️ Xóa Dữ Liệu Báo Cáo Tài Chính")
+    
+    # Load scraped tickers from sheets
+    try:
+        income_df = fetch_financial_sheet("income")
+        scraped_tickers = []
+        if not income_df.empty and 'ticker' in income_df.columns:
+            scraped_tickers = sorted(income_df['ticker'].dropna().unique().tolist())
+    except:
+        scraped_tickers = []
+    
+    if scraped_tickers:
+        fin_delete_tickers = st.multiselect(
+            "Chọn mã cần xóa dữ liệu",
+            options=scraped_tickers,
+            help="Chọn các mã muốn xóa khỏi báo cáo tài chính",
+            key="fin_delete_tickers"
+        )
+        
+        if st.button("🗑️ Xóa Dữ Liệu Đã Chọn", type="secondary", key="btn_fin_delete"):
+            if fin_delete_tickers:
+                with st.spinner("Đang xóa dữ liệu..."):
+                    try:
+                        creds = get_google_credentials()
+                        client = gspread.authorize(creds)
+                        spreadsheet = client.open("Stock_Data_Storage")
+                        
+                        deleted_count = 0
+                        for sheet_name in ["income", "balance", "cashflow"]:
+                            try:
+                                ws = spreadsheet.worksheet(sheet_name)
+                                all_data = ws.get_all_records()
+                                df = pd.DataFrame(all_data)
+                                
+                                if not df.empty and 'ticker' in df.columns:
+                                    original_count = len(df)
+                                    df = df[~df['ticker'].isin(fin_delete_tickers)]
+                                    deleted_count += original_count - len(df)
+                                    
+                                    # Write back
+                                    ws.clear()
+                                    ws.update([df.columns.values.tolist()] + df.values.tolist())
+                            except Exception as e:
+                                st.warning(f"Lỗi xóa từ {sheet_name}: {str(e)}")
+                        
+                        st.success(f"✅ Đã xóa {deleted_count} bản ghi của {len(fin_delete_tickers)} mã!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Lỗi: {str(e)}")
+            else:
+                st.warning("Vui lòng chọn ít nhất một mã để xóa")
+    else:
+        st.info("Chưa có dữ liệu đã cào. Vui lòng cào dữ liệu trước.")
 
 
-elif page == "💸 Dòng Tiền":
+elif page == "💸 Giao dịch mua-bán":
     render_money_flow_tab()
 
 elif page == "🔍 Lọc Cổ Phiếu":
@@ -2030,6 +2336,44 @@ elif page == "⚙️ Settings":
     st.subheader("📋 Cào Báo Cáo Tài Chính")
     st.info("💡 Cào dữ liệu báo cáo tài chính (Income, Balance, Cashflow) từ vnstock")
     
+    # Filter options - Row 1
+    fin_filter_col1, fin_filter_col2, fin_filter_col3 = st.columns(3)
+    
+    with fin_filter_col1:
+        fin_period = st.selectbox(
+            "📅 Loại báo cáo",
+            options=["quarter", "annual"],
+            format_func=lambda x: "Theo Quý" if x == "quarter" else "Theo Năm",
+            key="fin_period"
+        )
+    
+    with fin_filter_col2:
+        fin_years = st.selectbox(
+            "📆 Số năm cần cào",
+            options=[1, 2, 3, 4, 5],
+            index=2,  # Default 3 years
+            help="Số năm dữ liệu cần cào (1-5 năm)",
+            key="fin_years"
+        )
+    
+    with fin_filter_col3:
+        fin_tickers_input = st.text_input(
+            "🔍 Mã cổ phiếu (để trống = tất cả)",
+            placeholder="VNM, FPT, VCB",
+            help="Nhập các mã cách nhau bởi dấu phẩy. Để trống để cào toàn bộ danh sách.",
+            key="fin_tickers"
+        )
+    
+    # Sector filter - Row 2
+    all_sectors = get_all_sectors()
+    fin_selected_sectors = st.multiselect(
+        "🏭 Lọc theo ngành (bỏ trống = tất cả ngành)",
+        options=all_sectors,
+        help="Chọn các ngành muốn cào. Bỏ trống để cào tất cả ngành.",
+        key="fin_sectors"
+    )
+    
+    # Action buttons
     fin_col1, fin_col2 = st.columns(2)
     
     with fin_col1:
@@ -2037,22 +2381,48 @@ elif page == "⚙️ Settings":
             with st.spinner("Đang cào báo cáo tài chính..."):
                 try:
                     import subprocess
+                    
+                    # Build command with filters
+                    cmd = [sys.executable, 'finance.py', '--period', fin_period, '--years', str(fin_years)]
+                    
+                    # Add ticker filter
+                    if fin_tickers_input.strip():
+                        cmd.extend(['--tickers', fin_tickers_input.strip()])
+                    
+                    # Add sector filter - get tickers from selected sectors
+                    if fin_selected_sectors and not fin_tickers_input.strip():
+                        from sectors import get_tickers_by_sector
+                        sector_tickers = []
+                        for sector in fin_selected_sectors:
+                            sector_tickers.extend(get_tickers_by_sector(sector))
+                        if sector_tickers:
+                            cmd.extend(['--tickers', ','.join(set(sector_tickers))])
+                    
                     result = subprocess.run(
-                        [sys.executable, 'finance.py'],
+                        cmd,
                         stdout=subprocess.PIPE, 
-                        stderr=subprocess.DEVNULL,
+                        stderr=subprocess.PIPE,
                         text=True,
                         encoding='utf-8',
                         errors='replace',
-                        timeout=600
+                        env={**os.environ, 'PYTHONIOENCODING': 'utf-8'},
+                        timeout=1800
                     )
                     if result.returncode == 0:
-                        st.success("Hoan tat cao bao cao tai chinh!")
+                        st.success("✅ Hoàn tất cào báo cáo tài chính!")
                         st.balloons()
+                        # Show summary
+                        if result.stdout:
+                            with st.expander("📄 Chi tiết"):
+                                st.code(result.stdout[-2000:])  # Last 2000 chars
                     else:
-                        st.error("Loi khi cao bao cao tai chinh")
+                        st.error(f"❌ Lỗi khi cào báo cáo tài chính (Exit code: {result.returncode})")
+                        if result.stderr:
+                            st.code(result.stderr)
+                except subprocess.TimeoutExpired:
+                     st.error("⏰ Lỗi: Quá thời gian chờ (Timeout 30 phút)")
                 except Exception as e:
-                    st.error("Loi he thong")
+                    st.error(f"❌ Lỗi hệ thống: {str(e)}")
     
     with fin_col2:
         st.markdown("**Output:** Sheets `income`, `balance`, `cashflow`")

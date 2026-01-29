@@ -54,10 +54,67 @@ def get_money_flow_data():
         st.error("Lỗi khi lấy dữ liệu dòng tiền: ")
         return pd.DataFrame()
 
+@st.cache_data(ttl=600)  # Cache 10 minutes
+def get_stock_financial_metrics(ticker):
+    """Lấy chỉ số tài chính của một mã cổ phiếu từ dữ liệu đã cào"""
+    try:
+        creds = get_google_credentials()
+        client = gspread.authorize(creds)
+        spreadsheet = client.open("Stock_Data_Storage")
+        
+        metrics = {'ticker': ticker, 'has_data': False}
+        
+        # Get income data for EPS, ROE, ROA
+        try:
+            income_ws = spreadsheet.worksheet("income")
+            income_data = income_ws.get_all_records()
+            income_df = pd.DataFrame(income_data)
+            
+            if not income_df.empty and 'ticker' in income_df.columns:
+                ticker_data = income_df[income_df['ticker'].astype(str).str.upper() == ticker.upper()]
+                if not ticker_data.empty:
+                    latest = ticker_data.iloc[-1]
+                    metrics['has_data'] = True
+                    
+                    # EPS
+                    if 'eps' in latest.index:
+                        metrics['EPS'] = pd.to_numeric(latest.get('eps', 0), errors='coerce')
+                    elif 'share_holder_income' in latest.index and 'outstanding_share' in latest.index:
+                        shi = pd.to_numeric(latest.get('share_holder_income', 0), errors='coerce')
+                        shares = pd.to_numeric(latest.get('outstanding_share', 1), errors='coerce')
+                        if shares and shares > 0:
+                            metrics['EPS'] = (shi * 1e9) / shares
+        except:
+            pass
+        
+        # Get balance data for ROE, ROA
+        try:
+            balance_ws = spreadsheet.worksheet("balance")
+            balance_data = balance_ws.get_all_records()
+            balance_df = pd.DataFrame(balance_data)
+            
+            if not balance_df.empty and 'ticker' in balance_df.columns:
+                ticker_data = balance_df[balance_df['ticker'].astype(str).str.upper() == ticker.upper()]
+                if not ticker_data.empty:
+                    latest = ticker_data.iloc[-1]
+                    metrics['has_data'] = True
+                    
+                    # ROE, ROA (if available)
+                    if 'roe' in latest.index:
+                        metrics['ROE'] = pd.to_numeric(latest.get('roe', 0), errors='coerce')
+                    if 'roa' in latest.index:
+                        metrics['ROA'] = pd.to_numeric(latest.get('roa', 0), errors='coerce')
+        except:
+            pass
+        
+        return metrics
+    except:
+        return {'ticker': ticker, 'has_data': False}
+
 def render_money_flow_tab():
-    """Render Money Flow Analysis tab"""
+    """Render Money Flow Analysis tab - Giao dịch mua-bán"""
     
-    st.markdown("### 💸 Phân Tích Dòng Tiền")
+    st.markdown("### 💸 Giao dịch mua-bán")
     
     # Manual fetch button
     col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 2])
@@ -72,7 +129,7 @@ def render_money_flow_tab():
                         stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                         text=True,
                         timeout=300,
-                        cwd='e:/Cao Phi/Code/stockvn'
+                        cwd=os.path.dirname(os.path.abspath(__file__))
                     )
                     
                     if result.returncode == 0:
@@ -86,28 +143,93 @@ def render_money_flow_tab():
                     st.error("[X] Loi he thong")
     
     with col_btn2:
-        hist_days = st.number_input("Số ngày lịch sử", min_value=7, max_value=365, value=30, step=1, key="hist_days")
-        if st.button("📅 Cào Lịch Sử", use_container_width=True):
-            with st.spinner(f"🔄 Đang cào dữ liệu {hist_days} ngày..."):
-                try:
-                    result = subprocess.run(
-                        [sys.executable, 'historical_money_flow.py', '--days', str(hist_days)],
-                        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                        text=True,
-                        timeout=600,
-                        cwd='e:/Cao Phi/Code/stockvn'
-                    )
-                    
-                    if result.returncode == 0:
-                        st.success(f"✅ Đã cào {hist_days} ngày thành công!")
-                        st.rerun()
-                    else:
-                        st.error("[X] Khong the cao du lieu. Vui long thu lai sau.")
-                except Exception as e:
-                    st.error("[X] Loi he thong")
+        st.caption("⚡ Real-time: Cào giao dịch mua-bán hiện tại")
     
     with col_btn3:
         st.info(f"🕒 Cập nhật lần cuối: {datetime.now().strftime('%H:%M:%S')}")
+    
+    st.markdown("---")
+    
+    # ===== Historical Scraping Section with Filters =====
+    st.subheader("📅 Cào Giao Dịch Lịch Sử")
+    st.caption("Cào dữ liệu giá và khối lượng giao dịch trong quá khứ")
+    
+    # Row 1: Time period and sector filter
+    hist_col1, hist_col2 = st.columns(2)
+    
+    with hist_col1:
+        hist_time_period = st.selectbox(
+            "⏱️ Thời gian cần cào",
+            options=["6 tháng", "1 năm", "2 năm", "3 năm", "4 năm", "5 năm"],
+            index=1,  # Default: 1 năm
+            key="hist_time_period"
+        )
+        # Convert to days
+        time_map = {"6 tháng": 180, "1 năm": 365, "2 năm": 730, "3 năm": 1095, "4 năm": 1460, "5 năm": 1825}
+        hist_days = time_map.get(hist_time_period, 365)
+    
+    with hist_col2:
+        all_sectors = get_all_sectors()
+        hist_sectors = st.multiselect(
+            "🏭 Lọc theo ngành (bỏ trống = tất cả)",
+            options=all_sectors,
+            key="hist_sectors"
+        )
+    
+    # Row 2: Stock ticker filter
+    hist_tickers_input = st.text_input(
+        "🔍 Mã cổ phiếu cụ thể (bỏ trống = tất cả)",
+        placeholder="VNM, FPT, VCB",
+        help="Nhập các mã cách nhau bởi dấu phẩy. Bỏ trống để cào tất cả.",
+        key="hist_tickers"
+    )
+    
+    # Scrape button
+    if st.button("📅 Cào Dữ Liệu Lịch Sử", use_container_width=True, type="secondary"):
+        with st.spinner(f"🔄 Đang cào dữ liệu {hist_time_period}..."):
+            try:
+                # Build command with filters
+                cmd = [sys.executable, 'price.py', '--days', str(hist_days)]
+                
+                # Add ticker filter
+                tickers_to_scrape = []
+                if hist_tickers_input.strip():
+                    tickers_to_scrape = [t.strip().upper() for t in hist_tickers_input.split(',')]
+                elif hist_sectors:
+                    # Get tickers from selected sectors
+                    from sectors import get_tickers_by_sector
+                    for sector in hist_sectors:
+                        tickers_to_scrape.extend(get_tickers_by_sector(sector))
+                    tickers_to_scrape = list(set(tickers_to_scrape))
+                
+                if tickers_to_scrape:
+                    cmd.extend(['--tickers', ','.join(tickers_to_scrape)])
+                
+                result = subprocess.run(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    encoding='utf-8',
+                    errors='replace',
+                    timeout=1800,
+                    cwd=os.path.dirname(os.path.abspath(__file__))
+                )
+                
+                if result.returncode == 0:
+                    st.success(f"✅ Đã cào dữ liệu {hist_time_period} thành công!")
+                    if result.stdout:
+                        with st.expander("📄 Chi tiết"):
+                            st.code(result.stdout[-2000:])
+                    st.rerun()
+                else:
+                    st.error("❌ Không thể cào dữ liệu. Vui lòng thử lại sau.")
+                    if result.stderr:
+                        st.code(result.stderr[:1000])
+            except subprocess.TimeoutExpired:
+                st.error("⏰ Timeout sau 30 phút")
+            except Exception as e:
+                st.error(f"❌ Lỗi hệ thống: {str(e)}")
     
     st.markdown("---")
     
@@ -166,42 +288,80 @@ def render_money_flow_tab():
     )
     st.plotly_chart(fig_sector, use_container_width=True)
     
-    st.markdown("### 🔥 Top 5 Cổ Phiếu Có Dòng Tiền Mạnh Nhất")
+    st.markdown("### 🔥 Top 15 Cổ Phiếu Dòng Tiền Mua Mạnh Nhất")
+    st.caption("5 cổ phiếu mỗi ngành × 3 ngành hàng đầu. Hiển thị chỉ số tài chính + nút thêm vào Danh mục theo dõi.")
     
-    # Top 5 stocks
-    top_stocks = latest_df.nlargest(5, 'money_flow_normalized')
+    # Get top 15 stocks (5 per sector for top 3 sectors)
+    top_sectors = sector_summary['sector'].tolist()
+    top_stocks_list = []
+    for sector in top_sectors:
+        sector_stocks = latest_df[latest_df['sector'] == sector].nlargest(5, 'money_flow_normalized')
+        top_stocks_list.append(sector_stocks)
     
-    # Hiển thị bảng
-    display_df = top_stocks[['ticker', 'sector', 'close', 'money_flow_normalized', 'price_change_pct', 'pe_ratio', 'pb_ratio', 'ps_ratio']].copy()
-    display_df.columns = ['Mã', 'Ngành', 'Giá', 'Dòng Tiền (B)', '% Thay Đổi', 'P/E', 'P/B', 'P/S']
+    top_stocks = pd.concat(top_stocks_list) if top_stocks_list else latest_df.nlargest(15, 'money_flow_normalized')
     
-    # Format với styling
-    st.dataframe(
-        display_df.style.format({
-            'Giá': '{:.2f}',
-            'Dòng Tiền (B)': '{:.2f}',
-            '% Thay Đổi': '{:+.2f}%',
-            'P/E': '{:.1f}',
-            'P/B': '{:.2f}',
-            'P/S': '{:.2f}'
-        }).background_gradient(subset=['Dòng Tiền (B)'], cmap='RdYlGn'),
-        use_container_width=True
-    )
-    
-    # Nút thêm vào watchlist
-    st.markdown("#### ➕ Thêm vào Danh Sách Theo Dõi")
-    for _, row in top_stocks.iterrows():
-        col1, col2, col3 = st.columns([2, 6, 2])
-        with col1:
-            st.write(f"**{row['ticker']}**")
-        with col2:
-            st.write(f"Dòng tiền: {row['money_flow_normalized']:.2f}B | P/E: {row['pe_ratio']:.1f} | P/B: {row['pb_ratio']:.2f}")
-        with col3:
-            if st.button(f"➕ Thêm", key=f"add_flow_{row['ticker']}"):
-                if add_to_watchlist(row['ticker'], 'flow'):
-                    st.success(f"✅ Đã thêm {row['ticker']}")
-                else:
-                    st.error(f"❌ Lỗi khi thêm {row['ticker']}")
+    # Display each stock with expanded info
+    for sector in top_sectors:
+        sector_stocks = top_stocks[top_stocks['sector'] == sector]
+        if sector_stocks.empty:
+            continue
+            
+        st.markdown(f"#### 🏭 {sector}")
+        
+        for _, row in sector_stocks.iterrows():
+            ticker = row['ticker']
+            
+            # Get financial metrics
+            fin_metrics = get_stock_financial_metrics(ticker)
+            
+            with st.container():
+                col1, col2, col3, col4 = st.columns([1.5, 3, 3, 2.5])
+                
+                with col1:
+                    st.markdown(f"**{ticker}**")
+                    st.caption(f"Giá: {row.get('close', 0):,.1f}K")
+                
+                with col2:
+                    st.write(f"💰 Dòng tiền: **{row['money_flow_normalized']:,.2f}B**")
+                    st.caption(f"P/E: {row.get('pe_ratio', 0):.1f} | P/B: {row.get('pb_ratio', 0):.2f} | Δ: {row.get('price_change_pct', 0):+.2f}%")
+                
+                with col3:
+                    if fin_metrics.get('has_data', False):
+                        roe = fin_metrics.get('ROE', 0)
+                        roa = fin_metrics.get('ROA', 0)
+                        eps = fin_metrics.get('EPS', 0)
+                        roe_str = f"{roe:.1f}%" if roe else "N/A"
+                        roa_str = f"{roa:.1f}%" if roa else "N/A"
+                        eps_str = f"{eps:,.0f}" if eps else "N/A"
+                        st.caption(f"📊 ROE: {roe_str} | ROA: {roa_str} | EPS: {eps_str}")
+                    else:
+                        st.caption("⚠️ Chưa có dữ liệu BCTC")
+                        if st.button(f"📋 Cào BCTC", key=f"scrape_fin_{ticker}", help=f"Cào báo cáo tài chính {ticker}"):
+                            with st.spinner(f"Đang cào BCTC {ticker}..."):
+                                try:
+                                    result = subprocess.run(
+                                        [sys.executable, 'finance.py', '--tickers', ticker],
+                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                        text=True, timeout=120,
+                                        cwd=os.path.dirname(os.path.abspath(__file__))
+                                    )
+                                    if result.returncode == 0:
+                                        st.success(f"✅ Đã cào BCTC {ticker}")
+                                        get_stock_financial_metrics.clear()  # Clear cache
+                                        st.rerun()
+                                    else:
+                                        st.error(f"❌ Lỗi cào BCTC")
+                                except Exception as e:
+                                    st.error(f"❌ Lỗi: {str(e)}")
+                
+                with col4:
+                    if st.button(f"➕ Thêm vào Danh mục", key=f"add_wl_{ticker}"):
+                        if add_to_watchlist(ticker, 'flow'):
+                            st.success(f"✅ Đã thêm {ticker}")
+                        else:
+                            st.error(f"❌ Lỗi")
+                
+                st.markdown("---")
     
     st.markdown("### 🔍 Bộ Lọc Nâng Cao")
     
@@ -262,24 +422,103 @@ def render_money_flow_tab():
             st.info("Không đủ dữ liệu hợp lệ để hiển thị biểu đồ phân tích định giá")
     except Exception as e:
         st.error("Lỗi khi tạo biểu đồ: ")
+    
+    # ===== Delete Trading Data Section =====
+    st.markdown("---")
+    st.subheader("🗑️ Xóa Dữ Liệu Giao Dịch")
+    
+    try:
+        creds = get_google_credentials()
+        client = gspread.authorize(creds)
+        spreadsheet_id = os.getenv("SPREADSHEET_ID")
+        if spreadsheet_id:
+            spreadsheet = client.open_by_key(spreadsheet_id)
+        else:
+            spreadsheet = client.open("Stock_Data_Storage")
+        
+        # Get available tickers from money_flow_top sheet
+        try:
+            mf_ws = spreadsheet.worksheet("money_flow_top")
+            mf_data = mf_ws.get_all_records()
+            mf_df = pd.DataFrame(mf_data)
+            
+            if not mf_df.empty:
+                available_sectors = sorted(mf_df['sector'].dropna().unique().tolist()) if 'sector' in mf_df.columns else []
+                available_tickers = sorted(mf_df['ticker'].dropna().unique().tolist()) if 'ticker' in mf_df.columns else []
+                
+                delete_mode = st.radio("Xóa theo", ["Ngành", "Mã cổ phiếu"], horizontal=True, key="mf_delete_mode")
+                
+                if delete_mode == "Ngành" and available_sectors:
+                    delete_sectors = st.multiselect("Chọn ngành cần xóa", options=available_sectors, key="mf_delete_sectors")
+                    
+                    if st.button("🗑️ Xóa Dữ Liệu Ngành Đã Chọn", key="btn_mf_delete_sector"):
+                        if delete_sectors:
+                            mf_df = mf_df[~mf_df['sector'].isin(delete_sectors)]
+                            mf_ws.clear()
+                            mf_ws.update([mf_df.columns.values.tolist()] + mf_df.values.tolist())
+                            st.success(f"✅ Đã xóa dữ liệu của {len(delete_sectors)} ngành!")
+                            st.rerun()
+                        else:
+                            st.warning("Vui lòng chọn ít nhất một ngành")
+                
+                elif delete_mode == "Mã cổ phiếu" and available_tickers:
+                    delete_tickers = st.multiselect("Chọn mã cần xóa", options=available_tickers, key="mf_delete_tickers")
+                    
+                    if st.button("🗑️ Xóa Dữ Liệu Mã Đã Chọn", key="btn_mf_delete_ticker"):
+                        if delete_tickers:
+                            mf_df = mf_df[~mf_df['ticker'].isin(delete_tickers)]
+                            mf_ws.clear()
+                            mf_ws.update([mf_df.columns.values.tolist()] + mf_df.values.tolist())
+                            st.success(f"✅ Đã xóa dữ liệu của {len(delete_tickers)} mã!")
+                            st.rerun()
+                        else:
+                            st.warning("Vui lòng chọn ít nhất một mã")
+            else:
+                st.info("Chưa có dữ liệu giao dịch để xóa")
+        except Exception as e:
+            st.info("Chưa có dữ liệu giao dịch")
+    except Exception as e:
+        st.error("Lỗi khi kết nối Google Sheets")
 
 def render_financial_screening_tab():
     """Render tab Lọc Cổ Phiếu"""
     
     # Real-time mode toggle - MOVED TO TOP
     st.markdown("### ⚡ Chế Độ Lọc")
-    col_mode1, col_mode2 = st.columns([1, 3])
+    col_mode1, col_mode2, col_mode3 = st.columns([1, 2, 1])
     with col_mode1:
         realtime_mode = st.toggle("🔴 Real-time Mode", value=False, 
                                   help="Sử dụng dữ liệu dòng tiền real-time (cập nhật mỗi 15 phút)")
     with col_mode2:
         if realtime_mode:
             st.info("💡 Đang sử dụng dữ liệu dòng tiền real-time từ intraday_flow")
-            st.write("Debug: Real-time mode is ON") # Debug message
         else:
             st.info("💡 Đang sử dụng dữ liệu tài chính từ báo cáo định kỳ")
-            st.write("Debug: Real-time mode is OFF") # Debug message
-    
+            
+    with col_mode3:
+        # Button Scrape Finance
+        if st.button("🔄 Cập nhật BCTC", help="Cào dữ liệu báo cáo tài chính mới nhất"):
+            with st.spinner("Đang cập nhật báo cáo tài chính (có thể lâu)..."):
+                try:
+                    current_dir = os.path.dirname(os.path.abspath(__file__))
+                    result = subprocess.run(
+                        [sys.executable, 'finance.py'],
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                        text=True,
+                        timeout=900, # 15 minutes
+                        cwd=current_dir
+                    )
+                    if result.returncode == 0:
+                        st.success("✅ Cập nhật BCTC thành công!")
+                        st.write(result.stdout)
+                    else:
+                        st.error("❌ Lỗi khi cập nhật BCTC")
+                        st.text(result.stderr)
+                except subprocess.TimeoutExpired:
+                     st.error("❌ Timeout: Quá trình chạy quá lâu")
+                except Exception as e:
+                     st.error(f"❌ Lỗi hệ thống: {e}")
+
     st.markdown("---")
     
     # Main header

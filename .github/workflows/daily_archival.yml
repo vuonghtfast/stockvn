@@ -22,7 +22,32 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install pandas gspread oauth2client python-dotenv
+          pip install pandas gspread oauth2client python-dotenv vnstock
+          # Hoặc pip install -r requirements.txt nếu file này đầy đủ
+      
+      - name: Run Money Flow Scraper (Market Scan)
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          VNSTOCK_API_KEY: ${{ secrets.VNSTOCK_API_KEY }}
+        run: |
+          python money_flow.py --top 60 --skip-holiday-check
+          
+      - name: Run Price Scraper (Update Daily Candle)
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          VNSTOCK_API_KEY: ${{ secrets.VNSTOCK_API_KEY }}
+        run: |
+          python price.py --mode update --interval 1D
+          
+      - name: Run Financial Reports Scraper
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          VNSTOCK_API_KEY: ${{ secrets.VNSTOCK_API_KEY }}
+        run: |
+          python finance.py
       
       - name: Run data archiver
         env:

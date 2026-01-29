@@ -262,7 +262,7 @@ def main():
     top_stocks_list = []
     for sector in positive_sectors['sector']:
         # Get Top 3 stocks in this sector from our scanned list
-        s_stocks = df[df['sector'] == sector].nlargest(3, 'net_flow')
+        s_stocks = df[df['sector'] == sector].nlargest(5, 'net_flow')
         top_stocks_list.append(s_stocks)
         
     top_stocks_df = pd.concat(top_stocks_list) if top_stocks_list else pd.DataFrame()
@@ -309,6 +309,26 @@ def main():
         mf_ws.clear()
         mf_ws.update([final_df.columns.values.tolist()] + final_df.astype(str).values.tolist())
         print(f"\n[SUCCESS] Saved {len(final_df)} records to money_flow_top.")
+        
+        # ===== Auto-save to "Danh mục mua mạnh" watchlist =====
+        if not top_stocks_df.empty:
+            try:
+                try:
+                    wl_ws = spreadsheet.worksheet("watchlist_strong_buy")
+                except gspread.WorksheetNotFound:
+                    wl_ws = spreadsheet.add_worksheet(title="watchlist_strong_buy", rows="50", cols="10")
+                
+                # Prepare watchlist data
+                wl_df = top_stocks_df[['ticker', 'sector', 'price', 'volume', 'net_flow']].copy()
+                wl_df['updated'] = timestamp
+                wl_df['list_name'] = 'Danh mục mua mạnh'
+                
+                # Clear and write
+                wl_ws.clear()
+                wl_ws.update([wl_df.columns.values.tolist()] + wl_df.astype(str).values.tolist())
+                print(f"[SUCCESS] Auto-saved {len(wl_df)} stocks to 'Danh mục mua mạnh' watchlist.")
+            except Exception as wl_e:
+                print(f"[!] Failed to save watchlist: {wl_e}")
         
     except Exception as e:
         print(f"[X] Save failed: {e}")
