@@ -3268,7 +3268,7 @@ AI_ANALYSIS_DAYS=400
                 # Build command
                 import subprocess
                 
-                cmd = ['python', 'price.py', '--period', period, '--interval', interval, '--mode', mode]
+                cmd = [sys.executable, 'price.py', '--period', period, '--interval', interval, '--mode', mode]
                 if tickers_arg:
                     cmd.extend(['--tickers', tickers_arg])
                 
