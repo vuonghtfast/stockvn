@@ -2678,6 +2678,108 @@ elif page == "⚙️ Settings":
         """)
     st.markdown('<div class="main-header">⚙️ Cài Đặt Hệ Thống</div>', unsafe_allow_html=True)
     
+    # ===== AI API Configuration =====
+    st.subheader("🤖 Cấu Hình AI API")
+    
+    with st.expander("🔑 Khai Báo API Keys cho AI Analysis", expanded=False):
+        st.markdown("""
+        **Hướng dẫn:** Nhập API key để sử dụng tính năng phân tích AI.
+        - API keys được lưu trong session (không lưu vĩnh viễn vì lý do bảo mật)
+        - Để lưu vĩnh viễn, thêm vào file `.env`
+        """)
+        
+        # Gemini API
+        gemini_key_current = os.getenv('GEMINI_API_KEY', '')
+        gemini_key_masked = gemini_key_current[:8] + '...' if gemini_key_current and len(gemini_key_current) > 8 else ''
+        
+        col_gem1, col_gem2 = st.columns([3, 1])
+        with col_gem1:
+            gemini_key = st.text_input(
+                "🌟 Gemini API Key", 
+                type="password",
+                placeholder="AIzaSy... (Lấy tại https://aistudio.google.com/apikey)",
+                help="Google Gemini API key - Free tier: 15 requests/minute"
+            )
+        with col_gem2:
+            st.caption("**Status:**")
+            if gemini_key_current and gemini_key_current not in ['', 'your_gemini_api_key_here']:
+                st.success(f"✅ Đã có ({gemini_key_masked})")
+            else:
+                st.warning("⚠️ Chưa có")
+        
+        # OpenAI API
+        openai_key_current = os.getenv('OPENAI_API_KEY', '')
+        openai_key_masked = openai_key_current[:8] + '...' if openai_key_current and len(openai_key_current) > 8 else ''
+        
+        col_oai1, col_oai2 = st.columns([3, 1])
+        with col_oai1:
+            openai_key = st.text_input(
+                "🌐 OpenAI API Key",
+                type="password",
+                placeholder="sk-... (Lấy tại https://platform.openai.com/api-keys)",
+                help="OpenAI API key - Paid tier"
+            )
+        with col_oai2:
+            st.caption("**Status:**")
+            if openai_key_current and openai_key_current not in ['', 'your_openai_api_key_here']:
+                st.success(f"✅ Đã có ({openai_key_masked})")
+            else:
+                st.info("ℹ️ Optional")
+        
+        # Anthropic API
+        anthropic_key_current = os.getenv('ANTHROPIC_API_KEY', '')
+        anthropic_key_masked = anthropic_key_current[:8] + '...' if anthropic_key_current and len(anthropic_key_current) > 8 else ''
+        
+        col_ant1, col_ant2 = st.columns([3, 1])
+        with col_ant1:
+            anthropic_key = st.text_input(
+                "🧠 Anthropic API Key",
+                type="password",
+                placeholder="sk-ant-... (Lấy tại https://console.anthropic.com/)",
+                help="Anthropic Claude API key - Paid tier"
+            )
+        with col_ant2:
+            st.caption("**Status:**")
+            if anthropic_key_current and anthropic_key_current not in ['', 'your_anthropic_api_key_here']:
+                st.success(f"✅ Đã có ({anthropic_key_masked})")
+            else:
+                st.info("ℹ️ Optional")
+        
+        # Save to session/env
+        if st.button("💾 Lưu API Keys vào Session", type="primary"):
+            updated = []
+            if gemini_key:
+                os.environ['GEMINI_API_KEY'] = gemini_key
+                updated.append("Gemini")
+            if openai_key:
+                os.environ['OPENAI_API_KEY'] = openai_key
+                updated.append("OpenAI")
+            if anthropic_key:
+                os.environ['ANTHROPIC_API_KEY'] = anthropic_key
+                updated.append("Anthropic")
+            
+            if updated:
+                st.success(f"✅ Đã lưu API keys: {', '.join(updated)} vào session!")
+                st.info("💡 **Lưu ý:** API keys chỉ có hiệu lực trong phiên làm việc này. Để lưu vĩnh viễn, thêm vào file `.env`")
+            else:
+                st.warning("⚠️ Không có key mới để lưu")
+        
+        # Show .env example
+        with st.expander("📄 Mẫu file .env"):
+            st.code("""
+# AI API Keys
+GEMINI_API_KEY=AIzaSy... 
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+
+# AI Settings  
+AI_DEFAULT_PROVIDER=gemini
+GEMINI_MODEL=gemini-2.0-flash
+AI_ANALYSIS_DAYS=400
+            """, language="bash")
+    
+    st.markdown("---")
+    
     st.subheader("📊 Cào Dữ Liệu Giá Chứng Khoán")
     
     # System Maintenance
@@ -2686,8 +2788,6 @@ elif page == "⚙️ Settings":
             st.cache_data.clear()
             st.cache_resource.clear()
             st.success("✅ Đã xóa cache! Vui lòng reload trang (F5) để thấy dữ liệu mới.")
-    
-    st.markdown("---")
     
     st.info("💡 **Hướng dẫn**: Chọn tham số và nhấn 'Cào Dữ Liệu' để lấy dữ liệu từ vnstock vào Google Sheets")
     
