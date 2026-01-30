@@ -87,23 +87,32 @@ def fetch_financial_sheet(sheet_name):
 
 @st.cache_data(ttl=3600)
 def fetch_ticker_list():
-    """Fetch list of tickers from Google Sheets with sector info"""
+    """Fetch list of tickers from watchlist_flow sheet"""
     try:
         spreadsheet = get_spreadsheet()
-        ws = spreadsheet.worksheet("tickers")
-        tickers = ws.col_values(1)[1:]  # Skip header
-        tickers = [t.strip().upper() for t in tickers if t.strip()]
+        ws = spreadsheet.worksheet("watchlist_flow")
+        data = ws.get_all_records()
         
-        # Add sector information
-        df = pd.DataFrame({
-            'ticker': tickers,
-            'sector': [get_sector(t) for t in tickers]
+        if data:
+            df = pd.DataFrame(data)
+            if 'ticker' in df.columns:
+                tickers = df['ticker'].dropna().unique().tolist()
+                tickers = [t.strip().upper() for t in tickers if t.strip()]
+                
+                return pd.DataFrame({
+                    'ticker': tickers,
+                    'sector': [get_sector(t) for t in tickers]
+                })
+        
+        # Fallback if no data
+        default_tickers = ["VNM", "HPG", "VIC"]
+        return pd.DataFrame({
+            'ticker': default_tickers,
+            'sector': [get_sector(t) for t in default_tickers]
         })
         
-        return df
     except Exception as e:
-        st.error("⚠️ Lỗi đọc danh sách mã: ")
-        # Return default fallback with sectors
+        st.error("⚠️ Lỗi đọc danh sách mã từ watchlist_flow")
         default_tickers = ["VNM", "HPG", "VIC"]
         return pd.DataFrame({
             'ticker': default_tickers,
@@ -559,7 +568,7 @@ def render_financial_screening_tab():
         selected_sectors = st.multiselect("Chọn ngành", options=get_all_sectors(), 
                                           help="Để trống = lọc tất cả ngành")
     with col2:
-        # Lấy tickers từ Google Sheets
+        # Lấy tickers từ watchlist_flow
         try:
             creds = get_google_credentials()
             client = gspread.authorize(creds)
@@ -569,8 +578,13 @@ def render_financial_screening_tab():
                 spreadsheet = client.open_by_key(spreadsheet_id)
             else:
                 spreadsheet = client.open("stockdata")
-            tickers_ws = spreadsheet.worksheet("tickers")
-            all_tickers = tickers_ws.col_values(1)[1:]
+            wl_ws = spreadsheet.worksheet("watchlist_flow")
+            wl_data = wl_ws.get_all_records()
+            if wl_data:
+                wl_df = pd.DataFrame(wl_data)
+                all_tickers = wl_df['ticker'].dropna().unique().tolist() if 'ticker' in wl_df.columns else []
+            else:
+                all_tickers = []
         except:
             all_tickers = []
         
