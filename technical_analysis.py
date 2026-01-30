@@ -496,7 +496,175 @@ def analyze_stock(df: pd.DataFrame, days: int = 400) -> Dict:
     return analyzer.get_analysis_summary()
 
 
+def fetch_fundamental_data(ticker: str) -> Dict:
+    """
+    Lấy dữ liệu cơ bản (Fundamental) từ GSheets hoặc vnstock API
+    
+    Thử GSheets trước, nếu không có thì lấy từ vnstock
+    
+    Returns:
+        Dict với các chỉ số: EPS, P/E, P/B, ROE, Revenue, NetIncome, Growth
+    """
+    fundamental = {
+        'has_data': False,
+        'source': None,
+        'eps': None,
+        'pe': None,
+        'pb': None,
+        'roe': None,
+        'revenue': None,
+        'net_income': None,
+        'revenue_growth': None,
+        'profit_growth': None,
+        'debt_to_equity': None,
+    }
+    
+    # 1. Thử lấy từ GSheets
+    try:
+        import gspread
+        import os
+        from config import get_google_credentials
+        
+        creds = get_google_credentials()
+        client = gspread.authorize(creds)
+        
+        spreadsheet_id = os.getenv("SPREADSHEET_ID")
+        if spreadsheet_id:
+            spreadsheet = client.open_by_key(spreadsheet_id)
+        else:
+            spreadsheet = client.open("stockdata")
+        
+        # Lấy từ sheet income
+        try:
+            ws_income = spreadsheet.worksheet("income")
+            income_data = ws_income.get_all_records()
+            income_df = pd.DataFrame(income_data)
+            income_df.columns = income_df.columns.str.lower().str.replace(' ', '_')
+            
+            # Lọc theo ticker
+            ticker_data = income_df[income_df['ticker'].str.upper() == ticker.upper()]
+            
+            if not ticker_data.empty:
+                # Sắp xếp theo year, quarter giảm dần để lấy mới nhất
+                if 'yearreport' in ticker_data.columns:
+                    ticker_data = ticker_data.rename(columns={'yearreport': 'year', 'lengthreport': 'quarter'})
+                
+                sort_cols = ['year']
+                if 'quarter' in ticker_data.columns:
+                    sort_cols.append('quarter')
+                
+                ticker_data = ticker_data.sort_values(sort_cols, ascending=False)
+                latest = ticker_data.iloc[0]
+                
+                # Tìm doanh thu và lợi nhuận
+                revenue_cols = ['revenue', 'revenue_(bn._vnd)', 'net_revenue']
+                profit_cols = ['net_income', 'attributable_to_parent_company', 'share_holder_income', 'post_tax_profit']
+                
+                for col in revenue_cols:
+                    if col in latest.index and pd.notna(latest[col]):
+                        fundamental['revenue'] = float(latest[col])
+                        break
+                        
+                for col in profit_cols:
+                    if col in latest.index and pd.notna(latest[col]):
+                        fundamental['net_income'] = float(latest[col])
+                        break
+                
+                fundamental['has_data'] = True
+                fundamental['source'] = 'gsheets'
+                
+                # Tính growth nếu có dữ liệu 2 kỳ
+                if len(ticker_data) >= 2:
+                    prev = ticker_data.iloc[1]
+                    for col in revenue_cols:
+                        if col in latest.index and col in prev.index:
+                            if pd.notna(latest[col]) and pd.notna(prev[col]) and float(prev[col]) != 0:
+                                fundamental['revenue_growth'] = (float(latest[col]) - float(prev[col])) / abs(float(prev[col])) * 100
+                            break
+                    for col in profit_cols:
+                        if col in latest.index and col in prev.index:
+                            if pd.notna(latest[col]) and pd.notna(prev[col]) and float(prev[col]) != 0:
+                                fundamental['profit_growth'] = (float(latest[col]) - float(prev[col])) / abs(float(prev[col])) * 100
+                            break
+                            
+        except Exception as e:
+            pass  # Tiếp tục thử vnstock
+            
+    except Exception as e:
+        pass  # Tiếp tục thử vnstock
+    
+    # 2. Nếu chưa có data, thử lấy từ vnstock API
+    if not fundamental['has_data']:
+        try:
+            from vnstock import Vnstock
+            
+            stock = Vnstock().stock(symbol=ticker, source='VCI')
+            
+            # Lấy ratio
+            try:
+                ratio = stock.finance.ratio(period='quarter', lang='en')
+                if ratio is not None and not ratio.empty:
+                    latest_ratio = ratio.iloc[-1] if len(ratio) > 0 else None
+                    if latest_ratio is not None:
+                        # Map các chỉ số
+                        if 'EPS' in ratio.columns:
+                            fundamental['eps'] = float(ratio['EPS'].iloc[-1]) if pd.notna(ratio['EPS'].iloc[-1]) else None
+                        if 'P/E' in ratio.columns:
+                            fundamental['pe'] = float(ratio['P/E'].iloc[-1]) if pd.notna(ratio['P/E'].iloc[-1]) else None
+                        if 'P/B' in ratio.columns:
+                            fundamental['pb'] = float(ratio['P/B'].iloc[-1]) if pd.notna(ratio['P/B'].iloc[-1]) else None
+                        if 'ROE' in ratio.columns:
+                            fundamental['roe'] = float(ratio['ROE'].iloc[-1]) if pd.notna(ratio['ROE'].iloc[-1]) else None
+            except:
+                pass
+            
+            # Lấy income statement
+            try:
+                income = stock.finance.income_statement(period='quarter')
+                if income is not None and not income.empty:
+                    income.columns = income.columns.str.lower().str.replace(' ', '_')
+                    latest = income.iloc[-1]
+                    
+                    revenue_cols = ['revenue', 'revenue_(bn._vnd)', 'net_revenue']
+                    profit_cols = ['net_income', 'attributable_to_parent_company', 'share_holder_income']
+                    
+                    for col in revenue_cols:
+                        if col in income.columns and pd.notna(latest[col]):
+                            fundamental['revenue'] = float(latest[col])
+                            break
+                    for col in profit_cols:
+                        if col in income.columns and pd.notna(latest[col]):
+                            fundamental['net_income'] = float(latest[col])
+                            break
+                    
+                    # Growth
+                    if len(income) >= 2:
+                        prev = income.iloc[-2]
+                        for col in revenue_cols:
+                            if col in income.columns:
+                                if pd.notna(latest[col]) and pd.notna(prev[col]) and float(prev[col]) != 0:
+                                    fundamental['revenue_growth'] = (float(latest[col]) - float(prev[col])) / abs(float(prev[col])) * 100
+                                break
+                        for col in profit_cols:
+                            if col in income.columns:
+                                if pd.notna(latest[col]) and pd.notna(prev[col]) and float(prev[col]) != 0:
+                                    fundamental['profit_growth'] = (float(latest[col]) - float(prev[col])) / abs(float(prev[col])) * 100
+                                break
+                    
+                    fundamental['has_data'] = True
+                    fundamental['source'] = 'vnstock'
+            except:
+                pass
+                
+        except Exception as e:
+            pass
+    
+    return fundamental
+
+
 if __name__ == '__main__':
     # Test với data mẫu
     print("Technical Analysis Module loaded successfully!")
     print("Usage: TechnicalAnalyzer(df, days=400).get_analysis_summary()")
+    print("Fundamental: fetch_fundamental_data('VNM')")
+

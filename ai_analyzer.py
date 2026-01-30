@@ -141,7 +141,19 @@ MỨC GIAO DỊCH ĐỀ XUẤT:
 - TP1 (+5%): {indicators.get('tp1', 0)}
 - TP2 (+10%): {indicators.get('tp2', 0)}
 - TP3 (+15%): {indicators.get('tp3', 0)}
-- Khuyến nghị: {indicators.get('recommendation', 'THEO DÕI')}
+- Khuyến nghị kỹ thuật: {indicators.get('recommendation', 'THEO DÕI')}
+
+PHÂN TÍCH CƠ BẢN (FUNDAMENTAL):
+- Có dữ liệu: {'Có' if indicators.get('fundamental_has_data', False) else 'Không'}
+- Nguồn: {indicators.get('fundamental_source', 'N/A')}
+- EPS: {indicators.get('fundamental_eps', 'N/A')}
+- P/E: {indicators.get('fundamental_pe', 'N/A')}
+- P/B: {indicators.get('fundamental_pb', 'N/A')}
+- ROE: {indicators.get('fundamental_roe', 'N/A')}
+- Doanh thu (tỷ VND): {indicators.get('fundamental_revenue', 'N/A')}
+- Lợi nhuận ròng (tỷ VND): {indicators.get('fundamental_net_income', 'N/A')}
+- Tăng trưởng doanh thu: {f"{indicators.get('fundamental_revenue_growth', 0):.1f}%" if indicators.get('fundamental_revenue_growth') else 'N/A'}
+- Tăng trưởng lợi nhuận: {f"{indicators.get('fundamental_profit_growth', 0):.1f}%" if indicators.get('fundamental_profit_growth') else 'N/A'}
 
 ---
 
@@ -169,22 +181,26 @@ Stop Loss: [Giá]
 3. CHỈ BÁO KỸ THUẬT
 [Phân tích RSI (vùng quá mua/quá bán), MACD Histogram (momentum), Volume (xác nhận dòng tiền).]
 
-4. VÙNG GIÁ QUAN TRỌNG
+4. PHÂN TÍCH CƠ BẢN (FUNDAMENTAL)
+[Nếu có dữ liệu fundamental: Đánh giá P/E so với ngành, tăng trưởng doanh thu/lợi nhuận, ROE. Nếu không có dữ liệu: ghi "Chưa có dữ liệu fundamental."]
+
+5. VÙNG GIÁ QUAN TRỌNG
 [Liệt kê và giải thích các mức hỗ trợ/kháng cự quan trọng, dynamic support từ MA.]
 
-5. CHIẾN LƯỢC GIAO DỊCH
+6. CHIẾN LƯỢC GIAO DỊCH
 [Đề xuất cụ thể: kịch bản Bullish/Bearish, vùng Entry tối ưu, Stop Loss, Take Profit. LƯU Ý: CHỈ PHÂN TÍCH CHO LONG (MUA), KHÔNG CÓ SHORT vì thị trường VN chưa cho phép bán khống.]
 
-6. RỦI RO
-[Các rủi ro kỹ thuật cần lưu ý: phân kỳ, volume thấp, invalidation conditions.]
+7. RỦI RO
+[Các rủi ro kỹ thuật và cơ bản cần lưu ý: phân kỳ, volume thấp, P/E quá cao, tăng trưởng âm, invalidation conditions.]
 
-KẾT LUẬN: [Tóm tắt ngắn gọn và đánh giá tổng quan.]
+KẾT LUẬN: [Tóm tắt ngắn gọn kết hợp cả kỹ thuật và cơ bản (nếu có). Đánh giá tổng quan.]
 
 ---
 QUAN TRỌNG:
 - Sử dụng các thuật ngữ chuyên môn như: Golden Alignment, Wyckoff Phase, Dynamic Support, Bullish/Bearish Divergence
 - Đưa ra con số cụ thể từ dữ liệu được cung cấp
 - CHỈ phân tích cho chiến lược LONG (MUA), KHÔNG đề cập đến SHORT vì thị trường Việt Nam chưa cho phép bán khống
+- Kết hợp phân tích kỹ thuật và cơ bản nếu có dữ liệu
 - Giải thích rõ ràng, dễ hiểu cho nhà đầu tư
 """
         return prompt

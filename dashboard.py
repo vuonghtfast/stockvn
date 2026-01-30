@@ -1933,6 +1933,22 @@ elif page == "🌐 Khuyến Nghị":
                         )
                         indicators = analyzer.get_analysis_summary()
                         
+                        # 2.5 Fetch Fundamental Data (GSheets first, then vnstock)
+                        from technical_analysis import fetch_fundamental_data
+                        fundamental = fetch_fundamental_data(ai_ticker)
+                        
+                        # Merge fundamental data into indicators
+                        indicators['fundamental_has_data'] = fundamental.get('has_data', False)
+                        indicators['fundamental_source'] = fundamental.get('source', 'N/A')
+                        indicators['fundamental_eps'] = fundamental.get('eps')
+                        indicators['fundamental_pe'] = fundamental.get('pe')
+                        indicators['fundamental_pb'] = fundamental.get('pb')
+                        indicators['fundamental_roe'] = fundamental.get('roe')
+                        indicators['fundamental_revenue'] = fundamental.get('revenue')
+                        indicators['fundamental_net_income'] = fundamental.get('net_income')
+                        indicators['fundamental_revenue_growth'] = fundamental.get('revenue_growth')
+                        indicators['fundamental_profit_growth'] = fundamental.get('profit_growth')
+                        
                         # 3. Quick summary before AI
                         st.markdown("### 📊 Tóm Tắt Chỉ Báo")
                         col_ind1, col_ind2, col_ind3, col_ind4 = st.columns(4)
@@ -2096,6 +2112,7 @@ elif page == "🌐 Khuyến Nghị":
         | **Trend** | Xu hướng, Pha Wyckoff |
         | **Levels** | Support, Resistance |
         | **Trading** | Entry Zone, TP1/2/3, Stop Loss |
+        | **Fundamental** 🆕 | EPS, P/E, P/B, ROE, Doanh thu, Lợi nhuận, Tăng trưởng |
         
         #### Công thức tính các mức giao dịch:
         
