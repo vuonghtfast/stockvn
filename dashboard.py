@@ -3034,16 +3034,26 @@ elif page == "⚙️ Hệ thống":
             st.caption("**Status:**")
             if gemini_key_current and gemini_key_current not in ['', 'your_gemini_api_key_here']:
                 st.success(f"✅ Đã có ({gemini_key_masked})")
+                st.caption(f"Key dài: {len(gemini_key_current)} ký tự")
                 # Test connection button
                 if st.button("🔍 Test", key="test_gemini", help="Kiểm tra kết nối Gemini"):
                     try:
                         import google.generativeai as genai
                         genai.configure(api_key=gemini_key_current)
+                        
+                        # Show full key for debugging (first 12 + last 4)
+                        key_debug = f"{gemini_key_current[:12]}...{gemini_key_current[-4:]}"
+                        st.info(f"🔑 Key đang dùng: `{key_debug}`")
+                        
                         model = genai.GenerativeModel('gemini-2.0-flash')
                         response = model.generate_content("Say 'OK' in one word")
-                        st.success(f"✅ Kết nối thành công! Model: gemini-2.0-flash")
+                        st.success(f"✅ Kết nối thành công!")
+                        st.code(response.text[:100])
                     except Exception as e:
-                        st.error(f"❌ Lỗi: {str(e)[:50]}")
+                        error_str = str(e)
+                        st.error(f"❌ Lỗi: {error_str[:200]}")
+                        if "quota" in error_str.lower() or "429" in error_str:
+                            st.warning("💡 Vượt quota! Kiểm tra tại: https://console.cloud.google.com/apis/api/generativelanguage.googleapis.com/quotas")
             else:
                 st.warning("⚠️ Chưa có")
         
