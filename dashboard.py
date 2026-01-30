@@ -2337,12 +2337,24 @@ CHỈ phân tích LONG (MUA), KHÔNG đề cập SHORT."""
                             st.warning(f"⚠️ {err}")
                         
                         if stocks_data:
-                            # Call AI to rank
-                            ai = AIAnalyzer(provider=compare_provider)
-                            use_custom = custom_prompt if custom_prompt != default_prompt else None
-                            ranking_report = ai.compare_and_rank_stocks(stocks_data, custom_prompt=use_custom)
+                            # Create cache key based on selected tickers
+                            cache_key = f"ai_ranking_{'_'.join(sorted([s['ticker'] for s in stocks_data]))}"
                             
-                            st.success(f"✅ Đã phân tích xong {len(stocks_data)} mã! (Model: {ai.model_name})")
+                            # Check if we already have cached result (to avoid repeated calls on auto-refresh)
+                            if cache_key in st.session_state and st.session_state.get(f"{cache_key}_provider") == compare_provider:
+                                ranking_report = st.session_state[cache_key]
+                                st.info("📌 Hiển thị kết quả đã cache (click lại để phân tích mới)")
+                            else:
+                                # Call AI to rank
+                                ai = AIAnalyzer(provider=compare_provider)
+                                use_custom = custom_prompt if custom_prompt != default_prompt else None
+                                ranking_report = ai.compare_and_rank_stocks(stocks_data, custom_prompt=use_custom)
+                                
+                                # Cache the result
+                                st.session_state[cache_key] = ranking_report
+                                st.session_state[f"{cache_key}_provider"] = compare_provider
+                            
+                            st.success(f"✅ Đã phân tích xong {len(stocks_data)} mã!")
                             st.markdown("---")
                             st.markdown("## 📊 Kết Quả Xếp Hạng Đầu Tư")
                             st.markdown(ranking_report)
