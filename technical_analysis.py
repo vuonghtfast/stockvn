@@ -604,35 +604,80 @@ def fetch_fundamental_data(ticker: str) -> Dict:
         try:
             ratio = stock.finance.ratio(period='quarter', lang='en')
             if ratio is not None and not ratio.empty:
-                # Map các chỉ số - chỉ ghi đè nếu chưa có
-                if fundamental.get('eps') is None and 'EPS' in ratio.columns:
-                    fundamental['eps'] = float(ratio['EPS'].iloc[-1]) if pd.notna(ratio['EPS'].iloc[-1]) else None
-                if fundamental.get('pe') is None and 'P/E' in ratio.columns:
-                    fundamental['pe'] = float(ratio['P/E'].iloc[-1]) if pd.notna(ratio['P/E'].iloc[-1]) else None
-                if fundamental.get('pb') is None and 'P/B' in ratio.columns:
-                    fundamental['pb'] = float(ratio['P/B'].iloc[-1]) if pd.notna(ratio['P/B'].iloc[-1]) else None
-                if fundamental.get('roe') is None and 'ROE' in ratio.columns:
-                    fundamental['roe'] = float(ratio['ROE'].iloc[-1]) if pd.notna(ratio['ROE'].iloc[-1]) else None
-                
-                # Bổ sung thêm các chỉ số quan trọng
-                if 'ROA' in ratio.columns:
-                    fundamental['roa'] = float(ratio['ROA'].iloc[-1]) if pd.notna(ratio['ROA'].iloc[-1]) else None
-                if 'Debt to Equity' in ratio.columns:
-                    fundamental['debt_to_equity'] = float(ratio['Debt to Equity'].iloc[-1]) if pd.notna(ratio['Debt to Equity'].iloc[-1]) else None
-                if 'Current Ratio' in ratio.columns:
-                    fundamental['current_ratio'] = float(ratio['Current Ratio'].iloc[-1]) if pd.notna(ratio['Current Ratio'].iloc[-1]) else None
-                if 'Quick Ratio' in ratio.columns:
-                    fundamental['quick_ratio'] = float(ratio['Quick Ratio'].iloc[-1]) if pd.notna(ratio['Quick Ratio'].iloc[-1]) else None
-                if 'Gross Margin' in ratio.columns:
-                    fundamental['gross_margin'] = float(ratio['Gross Margin'].iloc[-1]) if pd.notna(ratio['Gross Margin'].iloc[-1]) else None
-                if 'Net Margin' in ratio.columns:
-                    fundamental['net_margin'] = float(ratio['Net Margin'].iloc[-1]) if pd.notna(ratio['Net Margin'].iloc[-1]) else None
+                # Flatten MultiIndex columns nếu cần
+                if isinstance(ratio.columns, pd.MultiIndex):
+                    # Lấy row cuối cùng có năm mới nhất
+                    ratio_sorted = ratio.sort_values(by=[('Meta', 'yearReport'), ('Meta', 'lengthReport')], ascending=False)
+                    last_row = ratio_sorted.iloc[0]
+                    
+                    # Map các chỉ số từ MultiIndex columns
+                    valuation_cols = {
+                        'eps': ('Chỉ tiêu định giá', 'EPS (VND)'),
+                        'pe': ('Chỉ tiêu định giá', 'P/E'),
+                        'pb': ('Chỉ tiêu định giá', 'P/B'),
+                    }
+                    
+                    profitability_cols = {
+                        'roe': ('Chỉ tiêu khả năng sinh lợi', 'ROE (%)'),
+                        'roa': ('Chỉ tiêu khả năng sinh lợi', 'ROA (%)'),
+                        'gross_margin': ('Chỉ tiêu khả năng sinh lợi', 'Gross Profit Margin (%)'),
+                        'net_margin': ('Chỉ tiêu khả năng sinh lợi', 'Net Profit Margin (%)'),
+                    }
+                    
+                    liquidity_cols = {
+                        'current_ratio': ('Chỉ tiêu thanh khoản', 'Current Ratio'),
+                        'quick_ratio': ('Chỉ tiêu thanh khoản', 'Quick Ratio'),
+                    }
+                    
+                    structure_cols = {
+                        'debt_to_equity': ('Chỉ tiêu cơ cấu nguồn vốn', 'Debt/Equity'),
+                    }
+                    
+                    # Extract valuation metrics
+                    for key, col in valuation_cols.items():
+                        if col in ratio.columns and fundamental.get(key) is None:
+                            val = last_row[col]
+                            if pd.notna(val) and val != 0:
+                                fundamental[key] = float(val)
+                    
+                    # Extract profitability metrics (convert % to actual %)
+                    for key, col in profitability_cols.items():
+                        if col in ratio.columns and fundamental.get(key) is None:
+                            val = last_row[col]
+                            if pd.notna(val) and val != 0:
+                                # API returns decimal, convert to percentage
+                                fundamental[key] = float(val) * 100 if float(val) < 1 else float(val)
+                    
+                    # Extract liquidity metrics
+                    for key, col in liquidity_cols.items():
+                        if col in ratio.columns and fundamental.get(key) is None:
+                            val = last_row[col]
+                            if pd.notna(val) and val != 0:
+                                fundamental[key] = float(val)
+                    
+                    # Extract structure metrics
+                    for key, col in structure_cols.items():
+                        if col in ratio.columns and fundamental.get(key) is None:
+                            val = last_row[col]
+                            if pd.notna(val):
+                                fundamental[key] = float(val)
+                else:
+                    # Fallback for flat columns
+                    simple_map = {
+                        'eps': 'EPS', 'pe': 'P/E', 'pb': 'P/B', 'roe': 'ROE',
+                        'roa': 'ROA', 'debt_to_equity': 'Debt/Equity'
+                    }
+                    for key, col in simple_map.items():
+                        if col in ratio.columns and fundamental.get(key) is None:
+                            val = ratio[col].iloc[-1]
+                            if pd.notna(val) and val != 0:
+                                fundamental[key] = float(val)
                 
                 fundamental['has_data'] = True
                 if fundamental['source'] is None:
                     fundamental['source'] = 'vnstock'
-        except:
-            pass
+        except Exception as e:
+            pass  # Silently handle ratio fetch errors
     except Exception as e:
         pass
 
