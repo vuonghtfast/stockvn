@@ -16,3 +16,7 @@ altair<5
 requests
 numpy
 openpyxl
+google-generativeai>=0.3.0
+openai>=1.0.0
+anthropic>=0.18.0
+

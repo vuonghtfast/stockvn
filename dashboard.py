@@ -1697,86 +1697,306 @@ elif page == "🌐 Khuyến Nghị":
     
     st.warning("⚠️ **TUYÊN BỐ MIỄN TRỪ TRÁCH NHIỆM:** Đây chỉ là hệ thống hỗ trợ ra quyết định dựa trên dữ liệu lịch sử. Kết quả không đảm bảo lợi nhuận trong tương lai. Bạn hoàn toàn chịu trách nhiệm về các quyết định đầu tư của mình.")
     
-    tickers = fetch_ticker_list()
-    rec_symbol = st.selectbox("Nhập mã để xem khuyến nghị", options=tickers, key="rec_symbol", index=0 if "VNM" not in tickers else tickers.index("VNM"))
+    # Tabs for different analysis types
+    tab_quick, tab_ai = st.tabs(["📊 Điểm Số Nhanh", "🤖 Phân Tích AI Chi Tiết"])
     
-    if rec_symbol:
-        with st.spinner(f"Đang phân tích {rec_symbol}..."):
-            # 1. Technical Score
-            end_date = datetime.now()
-            start_date = end_date - timedelta(days=60)
-            df = fetch_stock_data(rec_symbol, start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
-            
-            tech_score = 50
-            tech_reasons = []
-            
-            if not df.empty and len(df) > 20:
-                # RSI check
-                delta = df['close'].diff()
-                gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-                loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-                rs = gain / loss
-                rsi = 100 - (100 / (1 + rs)).iloc[-1]
+    # ===== TAB 1: Quick Score (Original functionality) =====
+    with tab_quick:
+        st.subheader("📊 Đánh Giá Nhanh")
+        
+        tickers = fetch_ticker_list()
+        rec_symbol = st.selectbox("Chọn mã cổ phiếu", options=tickers, key="rec_symbol_quick", index=0)
+        
+        if rec_symbol:
+            with st.spinner(f"Đang phân tích {rec_symbol}..."):
+                # 1. Technical Score
+                end_date = datetime.now()
+                start_date = end_date - timedelta(days=60)
+                df = fetch_stock_data(rec_symbol, start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"))
                 
-                if rsi < 30: 
-                    tech_score += 20
-                    tech_reasons.append("✅ RSI Quá bán (Overbought) - Cơ hội hồi phục")
-                elif rsi > 70:
-                    tech_score -= 20
-                    tech_reasons.append("❌ RSI Quá mua (Oversold) - Rủi ro điều chỉnh")
+                tech_score = 50
+                tech_reasons = []
                 
-                # MA check
-                sma20 = df['close'].rolling(window=20).mean().iloc[-1]
-                if df['close'].iloc[-1] > sma20:
-                    tech_score += 15
-                    tech_reasons.append("✅ Giá nằm trên MA20 - Xu hướng ngắn hạn tốt")
-                else:
-                    tech_score -= 10
-                    tech_reasons.append("❌ Giá nằm dưới MA20 - Xu hướng ngắn hạn yếu")
-            
-            # 2. Fundamental Score
-            fund_score = 50
-            fund_reasons = []
-            income_df = fetch_financial_sheet("income")
-            if not income_df.empty:
-                ticker_income = income_df[income_df['ticker'].astype(str).str.upper() == rec_symbol]
-                if not ticker_income.empty and len(ticker_income) >= 2:
-                    current = ticker_income.iloc[-1]
-                    prev = ticker_income.iloc[-2]
+                if not df.empty and len(df) > 20:
+                    # RSI check
+                    delta = df['close'].diff()
+                    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+                    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+                    rs = gain / loss
+                    rsi = 100 - (100 / (1 + rs)).iloc[-1]
                     
-                    if 'revenue' in current and 'revenue' in prev:
-                        rev_growth = (current['revenue'] - prev['revenue']) / prev['revenue']
-                        if rev_growth > 0.1:
-                            fund_score += 15
-                            fund_reasons.append(f"✅ Doanh thu tăng trưởng mạnh (+{rev_growth:.1%})")
-                        elif rev_growth < 0:
-                            fund_score -= 10
-                            fund_reasons.append(f"❌ Doanh thu sụt giảm ({rev_growth:.1%})")
+                    if rsi < 30: 
+                        tech_score += 20
+                        tech_reasons.append("✅ RSI Quá bán (Overbought) - Cơ hội hồi phục")
+                    elif rsi > 70:
+                        tech_score -= 20
+                        tech_reasons.append("❌ RSI Quá mua (Oversold) - Rủi ro điều chỉnh")
                     
-                    if 'net_income' in current and 'net_income' in prev:
-                        profit_growth = (current['net_income'] - prev['net_income']) / prev['net_income']
-                        if profit_growth > 0.1:
-                            fund_score += 15
-                            fund_reasons.append(f"✅ Lợi nhuận tăng trưởng tốt (+{profit_growth:.1%})")
+                    # MA check
+                    sma20 = df['close'].rolling(window=20).mean().iloc[-1]
+                    if df['close'].iloc[-1] > sma20:
+                        tech_score += 15
+                        tech_reasons.append("✅ Giá nằm trên MA20 - Xu hướng ngắn hạn tốt")
+                    else:
+                        tech_score -= 10
+                        tech_reasons.append("❌ Giá nằm dưới MA20 - Xu hướng ngắn hạn yếu")
+                
+                # 2. Fundamental Score
+                fund_score = 50
+                fund_reasons = []
+                income_df = fetch_financial_sheet("income")
+                if not income_df.empty:
+                    ticker_income = income_df[income_df['ticker'].astype(str).str.upper() == rec_symbol]
+                    if not ticker_income.empty and len(ticker_income) >= 2:
+                        current = ticker_income.iloc[-1]
+                        prev = ticker_income.iloc[-2]
+                        
+                        if 'revenue' in current and 'revenue' in prev:
+                            try:
+                                rev_current = float(current['revenue'])
+                                rev_prev = float(prev['revenue'])
+                                if rev_prev != 0:
+                                    rev_growth = (rev_current - rev_prev) / rev_prev
+                                    if rev_growth > 0.1:
+                                        fund_score += 15
+                                        fund_reasons.append(f"✅ Doanh thu tăng trưởng mạnh (+{rev_growth:.1%})")
+                                    elif rev_growth < 0:
+                                        fund_score -= 10
+                                        fund_reasons.append(f"❌ Doanh thu sụt giảm ({rev_growth:.1%})")
+                            except:
+                                pass
+                        
+                        if 'net_income' in current and 'net_income' in prev:
+                            try:
+                                profit_current = float(current['net_income'])
+                                profit_prev = float(prev['net_income'])
+                                if profit_prev != 0:
+                                    profit_growth = (profit_current - profit_prev) / profit_prev
+                                    if profit_growth > 0.1:
+                                        fund_score += 15
+                                        fund_reasons.append(f"✅ Lợi nhuận tăng trưởng tốt (+{profit_growth:.1%})")
+                            except:
+                                pass
 
-            # Final Calculation
-            final_score = (tech_score * 0.4 + fund_score * 0.6)
+                # Final Calculation
+                final_score = (tech_score * 0.4 + fund_score * 0.6)
+                
+                # Display
+                col1, col2 = st.columns([1, 2])
+                with col1:
+                    st.metric("TỔNG ĐIỂM", f"{final_score:.1f}/100")
+                    if final_score > 70:
+                        st.success("💪 TÍN HIỆU: MUA")
+                    elif final_score < 40:
+                        st.error("📉 TÍN HIỆU: BÁN")
+                    else:
+                        st.warning("⚖️ TÍN HIỆU: THEO DÕI")
+                
+                with col2:
+                    st.subheader("Chi tiết đánh giá")
+                    for r in tech_reasons + fund_reasons:
+                        st.write(r)
+    
+    # ===== TAB 2: AI Analysis =====
+    with tab_ai:
+        st.subheader("🤖 Phân Tích Kỹ Thuật Bằng AI")
+        st.info("💡 Tạo báo cáo phân tích kỹ thuật chi tiết bằng AI. Báo cáo sẽ được lưu vào Google Sheets.")
+        
+        # Configuration row
+        col_ticker, col_custom, col_days, col_provider = st.columns([2, 1.5, 1, 1])
+        
+        with col_ticker:
+            # Get watchlist from watchlist_flow sheet
+            watchlist_tickers = []
+            try:
+                flow_watchlist = get_watchlist('flow')
+                if not flow_watchlist.empty and 'ticker' in flow_watchlist.columns:
+                    watchlist_tickers = flow_watchlist['ticker'].tolist()
+            except:
+                pass
             
-            # Display
-            col1, col2 = st.columns([1, 2])
-            with col1:
-                st.metric("TỔNG ĐIỂM", f"{final_score:.1f}/100")
-                if final_score > 70:
-                    st.success("💪 TÍNH HIỆU: MUA")
-                elif final_score < 40:
-                    st.error("📉 TÍNH HIỆU: BÁN")
-                else:
-                    st.warning("⚖️ TÍNH HIỆU: THEO DÕI")
+            if watchlist_tickers:
+                ai_ticker_select = st.selectbox(
+                    "Chọn từ danh mục", 
+                    options=[""] + watchlist_tickers, 
+                    key="ai_ticker_select",
+                    help="Chọn mã từ danh sách theo dõi"
+                )
+            else:
+                ai_ticker_select = ""
+                st.info("Chưa có mã trong danh mục")
+        
+        with col_custom:
+            ai_ticker_custom = st.text_input(
+                "Hoặc nhập mã", 
+                placeholder="VD: ACB",
+                key="ai_ticker_custom",
+                help="Nhập mã bất kỳ (ưu tiên nếu có)"
+            ).upper().strip()
+        
+        # Priority: custom input > select from watchlist
+        ai_ticker = ai_ticker_custom if ai_ticker_custom else ai_ticker_select
+        
+        with col_days:
+            ai_days = st.number_input(
+                "Số ngày dữ liệu", 
+                min_value=60, 
+                max_value=1000, 
+                value=int(os.getenv('AI_ANALYSIS_DAYS', 400)),
+                step=50,
+                help="Số ngày dữ liệu lịch sử để phân tích (khuyến nghị: 400)"
+            )
+        
+        with col_provider:
+            ai_provider = st.selectbox(
+                "AI Provider",
+                options=["gemini", "openai", "anthropic"],
+                index=0,
+                help="Chọn nhà cung cấp AI (Gemini mặc định)"
+            )
+        
+        # Check API key
+        api_key_env = {
+            'gemini': 'GEMINI_API_KEY',
+            'openai': 'OPENAI_API_KEY', 
+            'anthropic': 'ANTHROPIC_API_KEY'
+        }
+        
+        has_api_key = os.getenv(api_key_env.get(ai_provider, '')) not in [None, '', 'your_gemini_api_key_here', 'your_openai_api_key_here', 'your_anthropic_api_key_here']
+        
+        if not has_api_key:
+            st.error(f"⚠️ Thiếu API key cho {ai_provider.upper()}. Vui lòng thêm `{api_key_env[ai_provider]}` vào file `.env`")
+            st.markdown(f"""
+            **Hướng dẫn lấy API key:**
+            - **Gemini**: https://aistudio.google.com/app/apikey
+            - **OpenAI**: https://platform.openai.com/api-keys  
+            - **Anthropic**: https://console.anthropic.com/
+            """)
+        
+        # Analyze button
+        col_btn, col_save = st.columns([2, 1])
+        with col_btn:
+            analyze_btn = st.button("🔍 Phân Tích Bằng AI", type="primary", use_container_width=True, disabled=not has_api_key)
+        with col_save:
+            save_to_sheets = st.checkbox("💾 Lưu báo cáo", value=True, help="Lưu báo cáo vào Google Sheets")
+        
+        if analyze_btn and ai_ticker:
+            with st.spinner(f"🤖 Đang phân tích {ai_ticker} với {ai_provider.upper()}... (có thể mất 30-60 giây)"):
+                try:
+                    # 1. Fetch data DIRECTLY from vnstock API (faster, no GSheets needed)
+                    from vnstock import Vnstock
+                    stock = Vnstock().stock(symbol=ai_ticker, source='VCI')
+                    end_date = datetime.now()
+                    start_date = end_date - timedelta(days=ai_days + 50)  # Extra buffer for MA200
+                    
+                    df = stock.quote.history(
+                        start=start_date.strftime("%Y-%m-%d"),
+                        end=end_date.strftime("%Y-%m-%d"),
+                        interval='1D'
+                    )
+                    
+                    if df is None or df.empty:
+                        st.error(f"❌ Không có dữ liệu cho {ai_ticker} từ vnstock API.")
+                    else:
+                        # Rename columns to match expected format
+                        df.columns = df.columns.str.lower()
+                        if 'time' in df.columns:
+                            df = df.rename(columns={'time': 'date'})
+                            df.set_index('date', inplace=True)
+                        
+                        # 2. Calculate technical indicators
+                        from technical_analysis import TechnicalAnalyzer
+                        analyzer = TechnicalAnalyzer(df, days=ai_days)
+                        indicators = analyzer.get_analysis_summary()
+                        
+                        # 3. Quick summary before AI
+                        st.markdown("### 📊 Tóm Tắt Chỉ Báo")
+                        col_ind1, col_ind2, col_ind3, col_ind4 = st.columns(4)
+                        with col_ind1:
+                            st.metric("Giá hiện tại", f"{indicators['current_price']:,.1f}")
+                        with col_ind2:
+                            rsi_color = "normal" if 30 < indicators['rsi'] < 70 else "inverse"
+                            st.metric("RSI (14)", f"{indicators['rsi']:.1f}")
+                        with col_ind3:
+                            st.metric("Volume Ratio", f"{indicators['volume_ratio']:.2f}x")
+                        with col_ind4:
+                            trend_emoji = "📈" if "uptrend" in indicators['trend'] else "📉" if "downtrend" in indicators['trend'] else "➡️"
+                            st.metric("Xu hướng", f"{trend_emoji} {indicators['trend']}")
+                        
+                        col_lvl1, col_lvl2, col_lvl3, col_lvl4 = st.columns(4)
+                        with col_lvl1:
+                            st.metric("Hỗ trợ", f"{indicators['support']:,.1f}")
+                        with col_lvl2:
+                            st.metric("Kháng cự", f"{indicators['resistance']:,.1f}")
+                        with col_lvl3:
+                            st.metric("Stop Loss", f"{indicators['stop_loss']:,.1f}")
+                        with col_lvl4:
+                            rec_color = "✅" if "MUA" in indicators['recommendation'] else "❌" if "BÁN" in indicators['recommendation'] else "⚖️"
+                            st.metric("Khuyến nghị", f"{rec_color} {indicators['recommendation']}")
+                        
+                        st.markdown("---")
+                        
+                        # 4. Generate AI report
+                        from ai_analyzer import AIAnalyzer
+                        ai = AIAnalyzer(provider=ai_provider)
+                        report = ai.generate_report(ai_ticker, indicators)
+                        
+                        # 5. Display report
+                        st.markdown("### 📝 Báo Cáo Phân Tích Chi Tiết")
+                        st.markdown(report)
+                        
+                        # 6. Save to sheets
+                        if save_to_sheets:
+                            if ai.save_report_to_sheets(ai_ticker, report, indicators):
+                                st.success("✅ Đã lưu báo cáo vào Google Sheets (sheet: ai_reports)")
+                            else:
+                                st.warning("⚠️ Không thể lưu báo cáo vào Sheets")
+                        
+                        # 7. Download option
+                        st.download_button(
+                            label="📥 Tải Báo Cáo (TXT)",
+                            data=report,
+                            file_name=f"analysis_{ai_ticker}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                            mime="text/plain"
+                        )
+                        
+                except ImportError as e:
+                    st.error(f"❌ Thiếu thư viện: {str(e)}")
+                    st.info("💡 Chạy: `pip install google-generativeai openai anthropic`")
+                except Exception as e:
+                    st.error(f"❌ Lỗi phân tích: {str(e)}")
+                    import traceback
+                    with st.expander("Chi tiết lỗi"):
+                        st.code(traceback.format_exc())
+        
+        # Show saved reports
+        st.markdown("---")
+        st.subheader("📚 Báo Cáo Đã Lưu")
+        
+        try:
+            from ai_analyzer import AIAnalyzer
+            ai = AIAnalyzer(provider='gemini')  # Just for reading, doesn't need valid key
+            saved_reports = ai.get_saved_reports(limit=5)
             
-            with col2:
-                st.subheader("Chi tiết đánh giá")
-                for r in tech_reasons + fund_reasons:
-                    st.write(r)
+            if saved_reports:
+                for report in saved_reports:
+                    with st.expander(f"📄 {report.get('ticker', 'N/A')} - {report.get('timestamp', 'N/A')} - {report.get('recommendation', '')}"):
+                        col_r1, col_r2, col_r3 = st.columns(3)
+                        with col_r1:
+                            st.write(f"**Entry:** {report.get('entry_zone', 'N/A')}")
+                        with col_r2:
+                            st.write(f"**TP:** {report.get('tp1', 0)} / {report.get('tp2', 0)} / {report.get('tp3', 0)}")
+                        with col_r3:
+                            st.write(f"**SL:** {report.get('stop_loss', 'N/A')}")
+                        
+                        if report.get('report'):
+                            st.markdown(report['report'][:2000] + "..." if len(report.get('report', '')) > 2000 else report.get('report', ''))
+            else:
+                st.info("📝 Chưa có báo cáo nào được lưu. Phân tích một mã để bắt đầu!")
+        except Exception as e:
+            st.info("📝 Chưa có báo cáo nào được lưu.")
+
+
 
 elif page == "🔬 Backtest":
     st.markdown('<div class="main-header">🔬 Backtest Chiến Lược Breakout</div>', unsafe_allow_html=True)
