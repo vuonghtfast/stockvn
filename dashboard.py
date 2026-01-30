@@ -876,41 +876,62 @@ if page == "🏠 Dashboard":
         
         # ===== Charts Section (Only Charts, No Metric Cards) =====
         
-        # Chart 1: Sector bar chart with buy/sell flow
-        if positive_sectors is not None and not positive_sectors.empty:
-            fig_sectors = go.Figure()
-            
-            pos_sectors_top3 = positive_sectors.head(3)
-            
-            # Add buy flow bars
-            fig_sectors.add_trace(go.Bar(
-                name='Dòng tiền MUA (B)',
-                x=pos_sectors_top3['sector'].tolist(),
-                y=pos_sectors_top3['buy_flow'].tolist(),
-                marker_color='#26a69a',
-                text=[f"{v:.1f}B" for v in pos_sectors_top3['buy_flow'].tolist()],
-                textposition='outside'
-            ))
-            
-            # Add sell flow bars
-            fig_sectors.add_trace(go.Bar(
-                name='Dòng tiền BÁN (B)',
-                x=pos_sectors_top3['sector'].tolist(),
-                y=pos_sectors_top3['sell_flow'].tolist(),
-                marker_color='#ef5350',
-                text=[f"{v:.1f}B" for v in pos_sectors_top3['sell_flow'].tolist()],
-                textposition='outside'
-            ))
-            
-            fig_sectors.update_layout(
-                title="Dòng Tiền Mua-Bán Theo Ngành (Top 3 Mua Mạnh)",
-                xaxis_title="Ngành",
-                yaxis_title="Giá trị (Tỷ VNĐ)",
-                barmode='group',
-                height=400,
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-            )
-            st.plotly_chart(fig_sectors, use_container_width=True)
+        # Chart 1: Sector bar charts - Positive and Negative side by side
+        col_chart1, col_chart2 = st.columns(2)
+        
+        # Chart 1a: Top 3 Ngành MUA Mạnh
+        with col_chart1:
+            if positive_sectors is not None and not positive_sectors.empty:
+                fig_pos = go.Figure()
+                pos_sectors_top3 = positive_sectors.head(3)
+                
+                # Add net flow bars
+                fig_pos.add_trace(go.Bar(
+                    name='Dòng tiền ròng',
+                    x=[f"🟢 {s}" for s in pos_sectors_top3['sector'].tolist()],
+                    y=pos_sectors_top3['net_flow'].tolist(),
+                    marker_color='#26a69a',
+                    text=[f"+{v:.2f}B" for v in pos_sectors_top3['net_flow'].tolist()],
+                    textposition='outside'
+                ))
+                
+                fig_pos.update_layout(
+                    title="📈 Top 3 Ngành MUA Mạnh",
+                    xaxis_title="Ngành",
+                    yaxis_title="Dòng tiền ròng (Tỷ VNĐ)",
+                    height=350,
+                    showlegend=False
+                )
+                st.plotly_chart(fig_pos, use_container_width=True)
+            else:
+                st.info("Chưa có dữ liệu ngành mua mạnh")
+        
+        # Chart 1b: Top 3 Ngành BÁN Mạnh
+        with col_chart2:
+            if negative_sectors is not None and not negative_sectors.empty:
+                fig_neg = go.Figure()
+                neg_sectors_top3 = negative_sectors.head(3)
+                
+                # Add net flow bars (negative)
+                fig_neg.add_trace(go.Bar(
+                    name='Dòng tiền ròng',
+                    x=[f"🔴 {s}" for s in neg_sectors_top3['sector'].tolist()],
+                    y=[abs(v) for v in neg_sectors_top3['net_flow'].tolist()],
+                    marker_color='#ef5350',
+                    text=[f"-{abs(v):.2f}B" for v in neg_sectors_top3['net_flow'].tolist()],
+                    textposition='outside'
+                ))
+                
+                fig_neg.update_layout(
+                    title="📉 Top 3 Ngành BÁN Mạnh",
+                    xaxis_title="Ngành",
+                    yaxis_title="Dòng tiền ròng (Tỷ VNĐ)",
+                    height=350,
+                    showlegend=False
+                )
+                st.plotly_chart(fig_neg, use_container_width=True)
+            else:
+                st.info("Chưa có dữ liệu ngành bán mạnh")
         
         # Chart 2: Top 9 stocks with value and volume
         if stocks_df is not None and not stocks_df.empty:

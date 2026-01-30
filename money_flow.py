@@ -9,7 +9,7 @@ Method: 2-Layer Funnel
 import pandas as pd
 from vnstock import Vnstock
 import gspread
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import os
 import sys
 import argparse
@@ -274,7 +274,9 @@ def main():
         except gspread.WorksheetNotFound:
             mf_ws = spreadsheet.add_worksheet(title="money_flow_top", rows="100", cols="15")
         
-        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        # Use Vietnam time (UTC+7)
+        vn_tz = timezone(timedelta(hours=7))
+        timestamp = datetime.now(vn_tz).strftime('%Y-%m-%d %H:%M:%S')
         
         # Prepare Rows
         # Stocks

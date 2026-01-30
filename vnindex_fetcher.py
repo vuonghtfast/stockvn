@@ -7,9 +7,14 @@ Chạy 4 lần/ngày: 9:30, 11:00, 14:00, 15:00
 import pandas as pd
 from vnstock import Vnstock
 import gspread
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import os
 import sys
+
+# Vietnam timezone
+VN_TZ = timezone(timedelta(hours=7))
+def vn_now():
+    return datetime.now(VN_TZ)
 from dotenv import load_dotenv
 from config import get_google_credentials
 from vietnam_holidays import is_trading_day
@@ -17,7 +22,7 @@ from vietnam_holidays import is_trading_day
 # Load environment variables
 load_dotenv()
 
-print(f"[i] VN Index Fetcher - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+print(f"[i] VN Index Fetcher - {vn_now().strftime('%Y-%m-%d %H:%M:%S')} (VN Time)")
 
 # Check if today is a trading day
 if not is_trading_day():
@@ -58,8 +63,8 @@ try:
     # Lấy dữ liệu VN-Index
     # VN-Index symbol trong vnstock là "VNINDEX"
     vnindex_data = vs.stock(symbol="VNINDEX", source='VCI').quote.history(
-        start=(datetime.now().replace(hour=0, minute=0, second=0)).strftime('%Y-%m-%d'),
-        end=datetime.now().strftime('%Y-%m-%d'),
+        start=vn_now().strftime('%Y-%m-%d'),
+        end=vn_now().strftime('%Y-%m-%d'),
         interval='1D'
     )
     
@@ -80,9 +85,9 @@ try:
         change_pct = (change / latest['open']) * 100 if latest['open'] > 0 else 0
     
     vnindex_record = {
-        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'date': datetime.now().strftime('%Y-%m-%d'),
-        'time': datetime.now().strftime('%H:%M:%S'),
+        'timestamp': vn_now().strftime('%Y-%m-%d %H:%M:%S'),
+        'date': vn_now().strftime('%Y-%m-%d'),
+        'time': vn_now().strftime('%H:%M:%S'),
         'value': round(latest['close'], 2),
         'open': round(latest['open'], 2),
         'high': round(latest['high'], 2),
@@ -121,7 +126,7 @@ try:
         existing_df = pd.DataFrame(existing_data)
         
         # Xóa dữ liệu cùng ngày (giữ lại lịch sử các ngày khác)
-        today = datetime.now().strftime('%Y-%m-%d')
+        today = vn_now().strftime('%Y-%m-%d')
         existing_df = existing_df[existing_df['date'] != today]
         
         # Thêm record mới

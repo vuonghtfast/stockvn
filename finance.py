@@ -44,26 +44,40 @@ except Exception as e:
     print(f"[X] Lỗi kết nối Google Sheets: {e}")
     sys.exit(1)
 
-# 2. Đọc danh sách mã cổ phiếu (hỗ trợ filter từ command line)
+# 2. Đọc danh sách mã cổ phiếu
+# Ưu tiên: 1. --tickers (nếu có) + watchlist_flow
 try:
-    tickers_ws = spreadsheet.worksheet("tickers")
-    all_tickers = [row[0] for row in tickers_ws.get_all_values()[1:] if row]
+    # Get tickers from watchlist_flow (default source)
+    watchlist_tickers = []
+    try:
+        wl_ws = spreadsheet.worksheet("watchlist_flow")
+        wl_data = wl_ws.get_all_records()
+        if wl_data:
+            wl_df = pd.DataFrame(wl_data)
+            if 'ticker' in wl_df.columns:
+                watchlist_tickers = wl_df['ticker'].dropna().unique().tolist()
+        print(f"[i] Từ watchlist_flow: {len(watchlist_tickers)} mã")
+    except Exception as e:
+        print(f"[!] Không đọc được watchlist_flow: {e}")
     
-    # Apply ticker filter if provided
+    # Add custom tickers from command line
+    custom_tickers = []
     if args.tickers:
-        filter_tickers = [t.strip().upper() for t in args.tickers.split(',')]
-        tickers = [t for t in filter_tickers if t in all_tickers]
-        if not tickers:
-            print(f"[!] Không tìm thấy mã nào trong filter: {args.tickers}")
-            tickers = filter_tickers  # Use the filter anyway
-    else:
-        tickers = all_tickers
-        
+        custom_tickers = [t.strip().upper() for t in args.tickers.split(',') if t.strip()]
+        print(f"[i] Từ --tickers: {len(custom_tickers)} mã ({', '.join(custom_tickers)})")
+    
+    # Combine: watchlist + custom (unique)
+    all_tickers = list(set(watchlist_tickers + custom_tickers))
+    tickers = all_tickers
+    
     if not tickers:
-        print("[!] Không có mã cổ phiếu nào để xử lý.")
+        print("[!] Không có mã cổ phiếu nào. Thêm mã vào watchlist_flow hoặc dùng --tickers VNM,FPT")
         sys.exit(0)
+    
+    print(f"[OK] Tổng cộng: {len(tickers)} mã sẽ được cào BCTC")
+    
 except Exception as e:
-    print(f"[X] Lỗi đọc sheet 'tickers': {e}")
+    print(f"[X] Lỗi đọc danh sách mã: {e}")
     sys.exit(1)
 
 # 3. Hàm lấy báo cáo tài chính (CẬP NHẬT API VNSTOCK MỚI)
