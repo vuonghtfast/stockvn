@@ -2640,7 +2640,7 @@ elif page == "🔬 Backtest":
         except Exception as e:
             st.error("❌ Lỗi quản lý danh mục: ")
             import traceback
-elif page == "⚙️ Settings":
+elif page == "⚙️ Hệ thống":
     from ticker_manager import add_ticker, remove_ticker, get_current_tickers
     
     st.markdown('<div class="main-header">⚙️ Cài Đặt</div>', unsafe_allow_html=True)
