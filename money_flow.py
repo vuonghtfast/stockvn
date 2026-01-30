@@ -258,14 +258,9 @@ def main():
     positive_sectors = sector_summary[sector_summary['net_flow'] > 0].head(3)
     negative_sectors = sector_summary[sector_summary['net_flow'] < 0].tail(3).iloc[::-1]
     
-    # Top Stocks from Positive Sectors
-    top_stocks_list = []
-    for sector in positive_sectors['sector']:
-        # Get Top 3 stocks in this sector from our scanned list
-        s_stocks = df[df['sector'] == sector].nlargest(5, 'net_flow')
-        top_stocks_list.append(s_stocks)
-        
-    top_stocks_df = pd.concat(top_stocks_list) if top_stocks_list else pd.DataFrame()
+    # Top 15 Stocks by NET FLOW (absolute value, to get both buy and sell leaders)
+    # Get top 15 by highest net_flow (positive = buy, negative = sell)
+    top_buy_stocks = df[df['net_flow'] > 0].nlargest(15, 'net_flow')
     
     # 4. Save to Sheets
     try:
@@ -278,10 +273,17 @@ def main():
         vn_tz = timezone(timedelta(hours=7))
         timestamp = datetime.now(vn_tz).strftime('%Y-%m-%d %H:%M:%S')
         
+        # Check if we have meaningful data (at least some stocks with net_flow != 0)
+        has_meaningful_data = len(top_buy_stocks) > 0 and top_buy_stocks['net_flow'].abs().sum() > 0.01
+        
+        if not has_meaningful_data:
+            print(f"\n[!] Không có dữ liệu mới (có thể ngoài giờ giao dịch). Giữ nguyên dữ liệu cũ.")
+            return
+        
         # Prepare Rows
-        # Stocks
-        if not top_stocks_df.empty:
-            stocks_out = top_stocks_df[['timestamp', 'ticker', 'sector', 'price', 'volume', 'buy_flow', 'sell_flow', 'net_flow']].copy()
+        # Stocks - Top 15 by net_flow
+        if not top_buy_stocks.empty:
+            stocks_out = top_buy_stocks[['timestamp', 'ticker', 'sector', 'price', 'volume', 'buy_flow', 'sell_flow', 'net_flow']].copy()
             stocks_out['type'] = 'stock'
         else:
             stocks_out = pd.DataFrame()
@@ -307,13 +309,13 @@ def main():
         col_order = ['timestamp', 'type', 'ticker', 'sector', 'price', 'volume', 'buy_flow', 'sell_flow', 'net_flow']
         final_df = final_df[[c for c in col_order if c in final_df.columns]]
         
-        # Write
+        # Write (only if we have meaningful data - checked above)
         mf_ws.clear()
         mf_ws.update([final_df.columns.values.tolist()] + final_df.astype(str).values.tolist())
-        print(f"\n[SUCCESS] Saved {len(final_df)} records to money_flow_top.")
+        print(f"\n[SUCCESS] Saved {len(stocks_out)} stocks + {len(pos_out)} pos sectors + {len(neg_out)} neg sectors to money_flow_top.")
         
         # ===== Auto-save to "Danh mục mua mạnh" watchlist =====
-        if not top_stocks_df.empty:
+        if not top_buy_stocks.empty:
             try:
                 try:
                     wl_ws = spreadsheet.worksheet("watchlist_strong_buy")
@@ -321,7 +323,7 @@ def main():
                     wl_ws = spreadsheet.add_worksheet(title="watchlist_strong_buy", rows="50", cols="10")
                 
                 # Prepare watchlist data
-                wl_df = top_stocks_df[['ticker', 'sector', 'price', 'volume', 'net_flow']].copy()
+                wl_df = top_buy_stocks[['ticker', 'sector', 'price', 'volume', 'net_flow']].copy()
                 wl_df['updated'] = timestamp
                 wl_df['list_name'] = 'Danh mục mua mạnh'
                 
