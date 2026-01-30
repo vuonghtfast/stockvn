@@ -211,13 +211,30 @@ QUAN TRỌNG:
         elif self.provider == 'anthropic':
             return self._call_anthropic(prompt)
     
-    def _call_gemini(self, prompt: str) -> str:
-        """Gọi Gemini API"""
-        try:
-            response = self.client.generate_content(prompt)
-            return response.text
-        except Exception as e:
-            return f"Lỗi Gemini API: {str(e)}"
+    def _call_gemini(self, prompt: str, max_retries: int = 3) -> str:
+        """Gọi Gemini API với retry logic cho rate limit"""
+        import time
+        
+        for attempt in range(max_retries):
+            try:
+                response = self.client.generate_content(prompt)
+                return response.text
+            except Exception as e:
+                error_msg = str(e)
+                
+                # Check if rate limit error (429)
+                if "429" in error_msg or "quota" in error_msg.lower():
+                    wait_time = 30 * (attempt + 1)  # 30s, 60s, 90s
+                    if attempt < max_retries - 1:
+                        print(f"[RATE LIMIT] Đợi {wait_time}s trước khi thử lại...")
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        return f"Lỗi Gemini API: Vượt quota. Vui lòng đợi 1 phút và thử lại."
+                else:
+                    return f"Lỗi Gemini API: {error_msg}"
+        
+        return "Lỗi Gemini API: Không thể kết nối sau nhiều lần thử"
     
     def _call_openai(self, prompt: str) -> str:
         """Gọi OpenAI API"""
