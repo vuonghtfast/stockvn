@@ -1698,7 +1698,7 @@ elif page == "🌐 Khuyến Nghị":
     st.warning("⚠️ **TUYÊN BỐ MIỄN TRỪ TRÁCH NHIỆM:** Đây chỉ là hệ thống hỗ trợ ra quyết định dựa trên dữ liệu lịch sử. Kết quả không đảm bảo lợi nhuận trong tương lai. Bạn hoàn toàn chịu trách nhiệm về các quyết định đầu tư của mình.")
     
     # Tabs for different analysis types
-    tab_quick, tab_ai = st.tabs(["📊 Điểm Số Nhanh", "🤖 Phân Tích AI Chi Tiết"])
+    tab_quick, tab_ai, tab_methodology = st.tabs(["📊 Điểm Số Nhanh", "🤖 Phân Tích AI Chi Tiết", "📚 Phương Pháp"])
     
     # ===== TAB 1: Quick Score (Original functionality) =====
     with tab_quick:
@@ -2024,7 +2024,128 @@ elif page == "🌐 Khuyến Nghị":
                 st.info("📝 Chưa có báo cáo nào được lưu. Phân tích một mã để bắt đầu!")
         except Exception as e:
             st.info("📝 Chưa có báo cáo nào được lưu.")
-
+    
+    # ===== TAB 3: Methodology =====
+    with tab_methodology:
+        st.subheader("📚 Phương Pháp Phân Tích & Thuật Toán Khuyến Nghị")
+        
+        st.markdown("""
+        ### 🎯 Tổng Quan
+        Hệ thống sử dụng 2 phương pháp phân tích song song:
+        1. **Điểm Số Nhanh**: Thuật toán tính điểm tự động
+        2. **Phân Tích AI**: Sử dụng AI để tạo báo cáo chi tiết
+        
+        ---
+        
+        ### 📊 TAB 1: ĐIỂM SỐ NHANH
+        
+        #### Các chỉ báo kỹ thuật sử dụng:
+        
+        | Chỉ báo | Công thức | Ý nghĩa |
+        |---------|-----------|---------|
+        | **MA20/50/200** | SMA của giá đóng cửa | Xu hướng ngắn/trung/dài hạn |
+        | **RSI (14)** | 100 - 100/(1 + RS) | Quá mua (>70) / Quá bán (<30) |
+        | **MACD** | EMA12 - EMA26 | Động lượng xu hướng |
+        | **Volume Ratio** | Volume / SMA20(Volume) | Dòng tiền mạnh/yếu |
+        
+        #### Cách tính điểm khuyến nghị:
+        
+        ```
+        Base Score = 50 điểm
+        
+        ➕ Xu hướng:
+          +20: Strong Uptrend (MA20 > MA50 > MA200, tất cả dốc lên)
+          +10: Uptrend
+          -10: Downtrend  
+          -20: Strong Downtrend
+        
+        ➕ Sắp xếp MA (Golden Alignment):
+          +15: Giá > MA20 > MA50 > MA200 (Golden)
+          -15: Giá < MA20 < MA50 < MA200 (Death)
+        
+        ➕ RSI:
+          +10: 40 < RSI < 70 (Vùng khỏe mạnh)
+          +5: RSI < 30 (Quá bán - tiềm năng đảo chiều)
+          -5: RSI > 70 (Quá mua - cẩn trọng)
+        
+        ➕ MACD Histogram:
+          +5: Histogram > 0 (Momentum tăng)
+          -5: Histogram < 0 (Momentum giảm)
+        
+        ➕ Volume:
+          +10: Volume Ratio > 1.5 kết hợp Uptrend
+        ```
+        
+        #### Khuyến nghị dựa trên điểm:
+        - **≥70 điểm**: MUA / TÍCH LŨY 🟢
+        - **50-69 điểm**: THEO DÕI 🟡
+        - **<50 điểm**: BÁN / HẠ TỶ TRỌNG 🔴
+        
+        ---
+        
+        ### 🤖 TAB 2: PHÂN TÍCH AI CHI TIẾT
+        
+        #### Dữ liệu đầu vào cho AI:
+        
+        | Loại | Dữ liệu |
+        |------|---------|
+        | **Giá** | OHLCV 400 ngày (có thể điều chỉnh) |
+        | **MA** | MA20, MA50, MA200, Alignment, Slope 60d |
+        | **Momentum** | RSI, MACD, Signal, Histogram |
+        | **Volume** | Volume Ratio, Volume Spike |
+        | **Trend** | Xu hướng, Pha Wyckoff |
+        | **Levels** | Support, Resistance |
+        | **Trading** | Entry Zone, TP1/2/3, Stop Loss |
+        
+        #### Công thức tính các mức giao dịch:
+        
+        ```python
+        # Entry Zone
+        Entry Low = max(MA20 × 0.98, Support)  # Uptrend
+        Entry Low = Support                   # Sideways/Downtrend
+        
+        # Take Profit (tuỳ chỉnh được)
+        TP1 = Entry × (1 + TP1_PCT%)  # Mặc định +5%
+        TP2 = Entry × (1 + TP2_PCT%)  # Mặc định +10%
+        TP3 = Entry × (1 + TP3_PCT%)  # Mặc định +15%
+        
+        # Stop Loss (tuỳ chỉnh được)
+        SL = Entry × (1 - SL_PCT%)    # Mặc định -6%
+        ```
+        
+        #### AI Prompt Structure:
+        AI được cung cấp toàn bộ dữ liệu trên và yêu cầu tạo báo cáo 6 phần:
+        1. **Xu hướng & Cấu trúc giá** - Golden Alignment, Wyckoff Phase
+        2. **Price Action** - Hành động giá, Pattern nến
+        3. **Chỉ báo kỹ thuật** - RSI, MACD, Volume
+        4. **Vùng giá quan trọng** - Support, Resistance
+        5. **Chiến lược giao dịch** - Entry, TP, SL (CHỈ LONG, không Short)
+        6. **Rủi ro** - Các điều kiện vô hiệu hóa
+        
+        ---
+        
+        ### ⚙️ Tuỳ Chỉnh Tham Số
+        
+        Có thể điều chỉnh qua file `.env` hoặc UI:
+        
+        | Tham số | Mặc định | Mô tả |
+        |---------|----------|-------|
+        | `TP1_PCT` | 5% | Take Profit 1 |
+        | `TP2_PCT` | 10% | Take Profit 2 |
+        | `TP3_PCT` | 15% | Take Profit 3 |
+        | `SL_PCT` | 6% | Stop Loss |
+        | `AI_ANALYSIS_DAYS` | 400 | Số ngày dữ liệu |
+        | `AI_DEFAULT_PROVIDER` | gemini | AI provider |
+        
+        ---
+        
+        ### ⚠️ Lưu Ý Quan Trọng
+        
+        1. **Chỉ phân tích LONG** - Không có short vì thị trường VN chưa cho phép
+        2. **Dữ liệu lịch sử** - Kết quả quá khứ không đảm bảo tương lai
+        3. **Rủi ro thị trường** - Luôn quản lý rủi ro và đa dạng hóa danh mục
+        4. **Kiểm tra kỹ** - Đây chỉ là công cụ hỗ trợ, không phải khuyến nghị đầu tư
+        """)
 
 
 elif page == "🔬 Backtest":
