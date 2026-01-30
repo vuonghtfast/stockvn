@@ -2217,7 +2217,6 @@ CHỈ phân tích LONG (MUA), KHÔNG đề cập SHORT."""
             if analyze_btn and len(selected_tickers) >= 2:
                 with st.spinner(f"🔄 Đang phân tích {len(selected_tickers)} mã... (có thể mất 30-60 giây)"):
                     try:
-                        from technical_analysis import TechnicalAnalyzer, fetch_fundamental_data
                         from ai_analyzer import AIAnalyzer
                         
                         stocks_data = []
@@ -2225,23 +2224,52 @@ CHỈ phân tích LONG (MUA), KHÔNG đề cập SHORT."""
                         
                         for i, ticker in enumerate(selected_tickers):
                             try:
-                                # Get technical data
-                                analyzer = TechnicalAnalyzer(ticker)
+                                # 1. Fetch data from vnstock API
+                                from vnstock import Vnstock
+                                stock = Vnstock().stock(symbol=ticker, source='VCI')
+                                end_date = datetime.now()
+                                start_date = end_date - timedelta(days=450)  # Extra buffer for MA200
+                                
+                                df = stock.quote.history(
+                                    start=start_date.strftime("%Y-%m-%d"),
+                                    end=end_date.strftime("%Y-%m-%d"),
+                                    interval='1D'
+                                )
+                                
+                                if df is None or df.empty:
+                                    st.warning(f"⚠️ Không có dữ liệu giá cho {ticker}")
+                                    continue
+                                
+                                # Rename columns to match expected format
+                                df.columns = df.columns.str.lower()
+                                if 'time' in df.columns:
+                                    df = df.rename(columns={'time': 'date'})
+                                    df.set_index('date', inplace=True)
+                                
+                                # 2. Create TechnicalAnalyzer with DataFrame
+                                from technical_analysis import TechnicalAnalyzer, fetch_fundamental_data
+                                analyzer = TechnicalAnalyzer(df, days=400)
                                 indicators = analyzer.get_analysis_summary()
                                 
-                                # Get fundamental data
+                                # Validate indicators is dict
+                                if not isinstance(indicators, dict):
+                                    st.warning(f"⚠️ Dữ liệu {ticker} không hợp lệ")
+                                    continue
+                                
+                                # 3. Get fundamental data
                                 fundamental = fetch_fundamental_data(ticker)
                                 
-                                # Merge data
-                                indicators['fundamental_eps'] = fundamental.get('eps', 'N/A')
-                                indicators['fundamental_pe'] = fundamental.get('pe', 'N/A')
-                                indicators['fundamental_pb'] = fundamental.get('pb', 'N/A')
-                                indicators['fundamental_roe'] = fundamental.get('roe', 'N/A')
-                                indicators['fundamental_revenue_growth'] = fundamental.get('revenue_growth', 'N/A')
+                                # 4. Merge data
+                                stock_indicators = dict(indicators)
+                                stock_indicators['fundamental_eps'] = fundamental.get('eps') if fundamental.get('eps') else 'N/A'
+                                stock_indicators['fundamental_pe'] = fundamental.get('pe') if fundamental.get('pe') else 'N/A'
+                                stock_indicators['fundamental_pb'] = fundamental.get('pb') if fundamental.get('pb') else 'N/A'
+                                stock_indicators['fundamental_roe'] = fundamental.get('roe') if fundamental.get('roe') else 'N/A'
+                                stock_indicators['fundamental_revenue_growth'] = fundamental.get('revenue_growth') if fundamental.get('revenue_growth') else 'N/A'
                                 
                                 stocks_data.append({
                                     'ticker': ticker,
-                                    'indicators': indicators
+                                    'indicators': stock_indicators
                                 })
                             except Exception as e:
                                 st.warning(f"⚠️ Không thể lấy dữ liệu {ticker}: {str(e)[:50]}")

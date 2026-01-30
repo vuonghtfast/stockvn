@@ -219,23 +219,32 @@ QUAN TRỌNG:
             ticker = stock.get('ticker', 'N/A')
             ind = stock.get('indicators', {})
             
+            # Safe formatting helper
+            def fmt(val, fmt_str='.1f'):
+                if val is None or val == 'N/A':
+                    return 'N/A'
+                try:
+                    return f"{float(val):{fmt_str}}"
+                except:
+                    return str(val)
+            
             stocks_summary += f"""
 ### {i}. {ticker}
 **Kỹ thuật:**
-- Giá: {ind.get('current_price', 'N/A'):,.1f} VNĐ
-- RSI(14): {ind.get('rsi', 'N/A'):.1f}
-- MACD Signal: {ind.get('macd_signal', 'N/A')}
+- Giá: {fmt(ind.get('current_price'), ',.1f')} VNĐ
+- RSI(14): {fmt(ind.get('rsi'))}
+- MACD Signal: {fmt(ind.get('macd_signal'), '.2f')}
 - Xu hướng: {ind.get('trend', 'N/A')}
-- Volume Ratio: {ind.get('volume_ratio', 'N/A'):.2f}x
-- Hỗ trợ/Kháng cự: {ind.get('support', 'N/A'):,.1f} / {ind.get('resistance', 'N/A'):,.1f}
+- Volume Ratio: {fmt(ind.get('volume_ratio'), '.2f')}x
+- Hỗ trợ/Kháng cự: {fmt(ind.get('support'), ',.1f')} / {fmt(ind.get('resistance'), ',.1f')}
 - Khuyến nghị Quick: {ind.get('recommendation', 'N/A')}
 
 **Cơ bản:**
-- EPS: {ind.get('fundamental_eps', 'N/A')}
-- P/E: {ind.get('fundamental_pe', 'N/A')}
-- P/B: {ind.get('fundamental_pb', 'N/A')}
-- ROE: {ind.get('fundamental_roe', 'N/A')}
-- Tăng trưởng DT: {ind.get('fundamental_revenue_growth', 'N/A')}%
+- EPS: {fmt(ind.get('fundamental_eps'), ',.0f')}
+- P/E: {fmt(ind.get('fundamental_pe'))}
+- P/B: {fmt(ind.get('fundamental_pb'))}
+- ROE: {fmt(ind.get('fundamental_roe'))}%
+- Tăng trưởng DT: {fmt(ind.get('fundamental_revenue_growth'))}%
 """
         
         # Default prompt or custom
