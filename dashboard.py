@@ -2282,7 +2282,7 @@ CHỈ phân tích LONG (MUA), KHÔNG đề cập SHORT."""
                             use_custom = custom_prompt if custom_prompt != default_prompt else None
                             ranking_report = ai.compare_and_rank_stocks(stocks_data, custom_prompt=use_custom)
                             
-                            st.success(f"✅ Đã phân tích xong {len(stocks_data)} mã!")
+                            st.success(f"✅ Đã phân tích xong {len(stocks_data)} mã! (Model: {ai.model_name})")
                             st.markdown("---")
                             st.markdown("## 📊 Kết Quả Xếp Hạng Đầu Tư")
                             st.markdown(ranking_report)
