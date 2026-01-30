@@ -964,43 +964,45 @@ if page == "🏠 Dashboard":
             
             col_buy, col_sell = st.columns(2)
             
-            # Chart 2a: Top BUY stocks
+            # Chart 2a: Top BUY stocks - Pie Chart
             with col_buy:
                 if not buy_stocks.empty:
-                    fig_buy = go.Figure()
-                    fig_buy.add_trace(go.Bar(
-                        name='Dòng tiền MUA',
-                        x=buy_stocks['ticker'].tolist(),
-                        y=buy_stocks['net_flow'].tolist(),
-                        marker_color='#26a69a',
-                        text=[f"+{v:.2f}B" for v in buy_stocks['net_flow'].tolist()],
-                        textposition='outside'
-                    ))
+                    fig_buy = go.Figure(data=[go.Pie(
+                        labels=buy_stocks['ticker'].tolist(),
+                        values=buy_stocks['net_flow'].tolist(),
+                        hole=0.4,
+                        marker_colors=['#26a69a', '#2bbbad', '#30d0c4', '#4dd5c8', '#6bdacc', '#89dfd1', '#a7e4d5', '#c5e9da', '#e3eede'],
+                        textinfo='label+percent',
+                        textposition='outside',
+                        hovertemplate='%{label}: +%{value:.2f}B VNĐ<extra></extra>'
+                    )])
                     fig_buy.update_layout(
                         title="🟢 Top 9 Cổ Phiếu MUA Mạnh",
-                        xaxis_title="Mã", yaxis_title="Dòng tiền (Tỷ VNĐ)",
-                        height=350, showlegend=False
+                        height=400,
+                        showlegend=True,
+                        legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
                     )
                     st.plotly_chart(fig_buy, use_container_width=True)
                 else:
                     st.info("Chưa có dữ liệu mã mua mạnh")
             
-            # Chart 2b: Top SELL stocks
+            # Chart 2b: Top SELL stocks - Pie Chart
             with col_sell:
                 if not sell_stocks.empty:
-                    fig_sell = go.Figure()
-                    fig_sell.add_trace(go.Bar(
-                        name='Dòng tiền BÁN',
-                        x=sell_stocks['ticker'].tolist(),
-                        y=[abs(v) for v in sell_stocks['net_flow'].tolist()],
-                        marker_color='#ef5350',
-                        text=[f"-{abs(v):.2f}B" for v in sell_stocks['net_flow'].tolist()],
-                        textposition='outside'
-                    ))
+                    fig_sell = go.Figure(data=[go.Pie(
+                        labels=sell_stocks['ticker'].tolist(),
+                        values=[abs(v) for v in sell_stocks['net_flow'].tolist()],
+                        hole=0.4,
+                        marker_colors=['#ef5350', '#f16b69', '#f38381', '#f59b9a', '#f7b3b2', '#f9cbcb', '#fbe3e3', '#fdf5f5', '#ffffff'],
+                        textinfo='label+percent',
+                        textposition='outside',
+                        hovertemplate='%{label}: -%{value:.2f}B VNĐ<extra></extra>'
+                    )])
                     fig_sell.update_layout(
                         title="🔴 Top 9 Cổ Phiếu BÁN Mạnh",
-                        xaxis_title="Mã", yaxis_title="Dòng tiền (Tỷ VNĐ)",
-                        height=350, showlegend=False
+                        height=400,
+                        showlegend=True,
+                        legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
                     )
                     st.plotly_chart(fig_sell, use_container_width=True)
                 else:
@@ -1712,7 +1714,7 @@ elif page == "🌐 Khuyến Nghị":
     st.warning("⚠️ **TUYÊN BỐ MIỄN TRỪ TRÁCH NHIỆM:** Đây chỉ là hệ thống hỗ trợ ra quyết định dựa trên dữ liệu lịch sử. Kết quả không đảm bảo lợi nhuận trong tương lai. Bạn hoàn toàn chịu trách nhiệm về các quyết định đầu tư của mình.")
     
     # Tabs for different analysis types
-    tab_quick, tab_ai, tab_methodology = st.tabs(["📊 Điểm Số Nhanh", "🤖 Phân Tích AI Chi Tiết", "📚 Phương Pháp"])
+    tab_quick, tab_ai, tab_compare, tab_methodology = st.tabs(["📊 Điểm Số Nhanh", "🤖 Phân Tích AI Chi Tiết", "🎯 Phân Tích Lựa Chọn", "📚 Phương Pháp"])
     
     # ===== TAB 1: Quick Score (Original functionality) =====
     with tab_quick:
@@ -2135,7 +2137,136 @@ elif page == "🌐 Khuyến Nghị":
         except Exception as e:
             st.info("📝 Chưa có báo cáo nào được lưu.")
     
-    # ===== TAB 3: Methodology =====
+    # ===== TAB 3: Multi-Stock Comparison =====
+    with tab_compare:
+        st.subheader("🎯 Phân Tích & Xếp Hạng Nhiều Mã")
+        st.info("💡 Chọn nhiều mã từ danh sách theo dõi, AI sẽ so sánh và xếp hạng theo thứ tự ưu tiên đầu tư.")
+        
+        # Get watchlist tickers
+        compare_watchlist = []
+        try:
+            flow_watchlist = get_watchlist('flow')
+            if not flow_watchlist.empty and 'ticker' in flow_watchlist.columns:
+                compare_watchlist = flow_watchlist['ticker'].tolist()
+        except:
+            pass
+        
+        if compare_watchlist:
+            # Multiselect for tickers
+            selected_tickers = st.multiselect(
+                "📌 Chọn các mã để so sánh (tối đa 10 mã)",
+                options=compare_watchlist,
+                default=compare_watchlist[:min(5, len(compare_watchlist))],
+                max_selections=10,
+                help="Chọn từ 2-10 mã để AI phân tích và xếp hạng"
+            )
+            
+            # Custom prompt expander
+            with st.expander("⚙️ Tuỳ Chỉnh Prompt AI", expanded=False):
+                default_prompt = """Bạn là chuyên gia phân tích chứng khoán Việt Nam với 20 năm kinh nghiệm.
+
+Nhiệm vụ: Đánh giá và XẾP HẠNG các mã cổ phiếu theo thứ tự ưu tiên đầu tư.
+
+Tiêu chí đánh giá:
+1. **Kỹ thuật (50%)**: RSI, Trend, Volume, Support/Resistance
+2. **Cơ bản (30%)**: P/E, ROE, Tăng trưởng
+3. **Risk/Reward (20%)**: Tiềm năng lợi nhuận vs rủi ro
+
+Yêu cầu output:
+1. Bảng xếp hạng với điểm số 0-100
+2. Lý do cụ thể cho mỗi mã
+3. Khuyến nghị phân bổ vốn (%)
+4. Cảnh báo rủi ro chính
+
+CHỈ phân tích LONG (MUA), KHÔNG đề cập SHORT."""
+                
+                custom_prompt = st.text_area(
+                    "Nhập prompt tuỳ chỉnh (thay đổi tiêu chí đánh giá, tỷ trọng, yêu cầu output...)",
+                    value=st.session_state.get('compare_custom_prompt', default_prompt),
+                    height=200,
+                    key="compare_prompt_textarea"
+                )
+                st.session_state['compare_custom_prompt'] = custom_prompt
+                
+                if st.button("🔄 Reset về mặc định"):
+                    st.session_state['compare_custom_prompt'] = default_prompt
+                    st.rerun()
+            
+            # Provider selection
+            col_provider, col_analyze = st.columns([1, 2])
+            with col_provider:
+                compare_provider = st.selectbox(
+                    "AI Provider",
+                    options=['gemini', 'openai', 'anthropic'],
+                    index=0,
+                    key="compare_provider"
+                )
+            
+            with col_analyze:
+                analyze_btn = st.button(
+                    "🔍 Phân Tích & Xếp Hạng",
+                    type="primary",
+                    use_container_width=True,
+                    disabled=len(selected_tickers) < 2
+                )
+            
+            if len(selected_tickers) < 2:
+                st.warning("⚠️ Vui lòng chọn ít nhất 2 mã để so sánh.")
+            
+            # Run analysis
+            if analyze_btn and len(selected_tickers) >= 2:
+                with st.spinner(f"🔄 Đang phân tích {len(selected_tickers)} mã... (có thể mất 30-60 giây)"):
+                    try:
+                        from technical_analysis import TechnicalAnalyzer, fetch_fundamental_data
+                        from ai_analyzer import AIAnalyzer
+                        
+                        stocks_data = []
+                        progress_bar = st.progress(0)
+                        
+                        for i, ticker in enumerate(selected_tickers):
+                            try:
+                                # Get technical data
+                                analyzer = TechnicalAnalyzer(ticker)
+                                indicators = analyzer.get_analysis_summary()
+                                
+                                # Get fundamental data
+                                fundamental = fetch_fundamental_data(ticker)
+                                
+                                # Merge data
+                                indicators['fundamental_eps'] = fundamental.get('eps', 'N/A')
+                                indicators['fundamental_pe'] = fundamental.get('pe', 'N/A')
+                                indicators['fundamental_pb'] = fundamental.get('pb', 'N/A')
+                                indicators['fundamental_roe'] = fundamental.get('roe', 'N/A')
+                                indicators['fundamental_revenue_growth'] = fundamental.get('revenue_growth', 'N/A')
+                                
+                                stocks_data.append({
+                                    'ticker': ticker,
+                                    'indicators': indicators
+                                })
+                            except Exception as e:
+                                st.warning(f"⚠️ Không thể lấy dữ liệu {ticker}: {str(e)[:50]}")
+                            
+                            progress_bar.progress((i + 1) / len(selected_tickers))
+                        
+                        if stocks_data:
+                            # Call AI to rank
+                            ai = AIAnalyzer(provider=compare_provider)
+                            use_custom = custom_prompt if custom_prompt != default_prompt else None
+                            ranking_report = ai.compare_and_rank_stocks(stocks_data, custom_prompt=use_custom)
+                            
+                            st.success(f"✅ Đã phân tích xong {len(stocks_data)} mã!")
+                            st.markdown("---")
+                            st.markdown("## 📊 Kết Quả Xếp Hạng Đầu Tư")
+                            st.markdown(ranking_report)
+                        else:
+                            st.error("❌ Không lấy được dữ liệu của bất kỳ mã nào.")
+                    
+                    except Exception as e:
+                        st.error(f"❌ Lỗi phân tích: {str(e)}")
+        else:
+            st.warning("⚠️ Chưa có mã trong danh sách theo dõi (watchlist_flow). Vui lòng thêm mã vào Danh Sách Theo Dõi trước.")
+    
+    # ===== TAB 4: Methodology =====
     with tab_methodology:
         st.subheader("📚 Phương Pháp Phân Tích & Thuật Toán Khuyến Nghị")
         

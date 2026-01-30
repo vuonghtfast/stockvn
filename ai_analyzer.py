@@ -205,6 +205,115 @@ QUAN TRỌNG:
 """
         return prompt
     
+    def _build_comparison_prompt(self, stocks_data: list, custom_prompt: str = None) -> str:
+        """
+        Xây dựng prompt để so sánh và xếp hạng nhiều mã cổ phiếu
+        
+        Args:
+            stocks_data: List[Dict] - Mỗi dict chứa ticker và indicators
+            custom_prompt: Prompt tùy chỉnh từ người dùng
+        """
+        # Build stocks summary
+        stocks_summary = ""
+        for i, stock in enumerate(stocks_data, 1):
+            ticker = stock.get('ticker', 'N/A')
+            ind = stock.get('indicators', {})
+            
+            stocks_summary += f"""
+### {i}. {ticker}
+**Kỹ thuật:**
+- Giá: {ind.get('current_price', 'N/A'):,.1f} VNĐ
+- RSI(14): {ind.get('rsi', 'N/A'):.1f}
+- MACD Signal: {ind.get('macd_signal', 'N/A')}
+- Xu hướng: {ind.get('trend', 'N/A')}
+- Volume Ratio: {ind.get('volume_ratio', 'N/A'):.2f}x
+- Hỗ trợ/Kháng cự: {ind.get('support', 'N/A'):,.1f} / {ind.get('resistance', 'N/A'):,.1f}
+- Khuyến nghị Quick: {ind.get('recommendation', 'N/A')}
+
+**Cơ bản:**
+- EPS: {ind.get('fundamental_eps', 'N/A')}
+- P/E: {ind.get('fundamental_pe', 'N/A')}
+- P/B: {ind.get('fundamental_pb', 'N/A')}
+- ROE: {ind.get('fundamental_roe', 'N/A')}
+- Tăng trưởng DT: {ind.get('fundamental_revenue_growth', 'N/A')}%
+"""
+        
+        # Default prompt or custom
+        if custom_prompt:
+            base_prompt = custom_prompt
+        else:
+            base_prompt = """Bạn là chuyên gia phân tích chứng khoán Việt Nam với 20 năm kinh nghiệm.
+
+Nhiệm vụ: Đánh giá và XẾP HẠNG các mã cổ phiếu theo thứ tự ưu tiên đầu tư.
+
+Tiêu chí đánh giá:
+1. **Kỹ thuật (50%)**: RSI, Trend, Volume, Support/Resistance
+2. **Cơ bản (30%)**: P/E, ROE, Tăng trưởng
+3. **Risk/Reward (20%)**: Tiềm năng lợi nhuận vs rủi ro
+
+Yêu cầu output:
+1. Bảng xếp hạng với điểm số 0-100
+2. Lý do cụ thể cho mỗi mã
+3. Khuyến nghị phân bổ vốn (%)
+4. Cảnh báo rủi ro chính
+
+CHỈ phân tích LONG (MUA), KHÔNG đề cập SHORT."""
+        
+        prompt = f"""{base_prompt}
+
+---
+
+## DỮ LIỆU CÁC MÃ CỔ PHIẾU:
+{stocks_summary}
+
+---
+
+## YÊU CẦU BÁO CÁO:
+
+### 📊 BẢNG XẾP HẠNG ĐẦU TƯ
+
+| Hạng | Mã | Điểm | Khuyến nghị | Phân bổ |
+|------|-----|------|-------------|---------|
+| 1 | XXX | 85/100 | MUA MẠNH | 40% |
+| ... | ... | ... | ... | ... |
+
+### 🔍 PHÂN TÍCH CHI TIẾT
+
+(Phân tích từng mã theo thứ tự xếp hạng)
+
+### ⚠️ RỦI RO CHÍNH
+
+(Liệt kê rủi ro cần lưu ý)
+
+### 💡 CHIẾN LƯỢC TỔNG QUAN
+
+(Khuyến nghị chiến lược đầu tư tổng thể)
+"""
+        return prompt
+    
+    def compare_and_rank_stocks(self, stocks_data: list, custom_prompt: str = None) -> str:
+        """
+        So sánh và xếp hạng nhiều mã cổ phiếu
+        
+        Args:
+            stocks_data: List[Dict] với mỗi dict = {ticker, indicators}
+            custom_prompt: Prompt tùy chỉnh (optional)
+        
+        Returns:
+            Báo cáo xếp hạng bằng tiếng Việt
+        """
+        if not stocks_data:
+            return "❌ Không có dữ liệu để phân tích."
+        
+        prompt = self._build_comparison_prompt(stocks_data, custom_prompt)
+        
+        if self.provider == 'gemini':
+            return self._call_gemini(prompt)
+        elif self.provider == 'openai':
+            return self._call_openai(prompt)
+        elif self.provider == 'anthropic':
+            return self._call_anthropic(prompt)
+    
     # ===== Report Generation =====
     
     def generate_report(self, ticker: str, indicators: Dict) -> str:
