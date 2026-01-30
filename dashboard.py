@@ -2215,20 +2215,20 @@ CHỈ phân tích LONG (MUA), KHÔNG đề cập SHORT."""
             
             # Run analysis
             if analyze_btn and len(selected_tickers) >= 2:
-                with st.spinner(f"🔄 Đang phân tích {len(selected_tickers)} mã... (có thể mất 30-60 giây)"):
+                with st.spinner(f"🔄 Đang phân tích {len(selected_tickers)} mã... (fetch song song)"):
                     try:
                         from ai_analyzer import AIAnalyzer
+                        from concurrent.futures import ThreadPoolExecutor, as_completed
                         
-                        stocks_data = []
-                        progress_bar = st.progress(0)
-                        
-                        for i, ticker in enumerate(selected_tickers):
+                        def fetch_stock_data(ticker):
+                            """Fetch data for a single stock"""
                             try:
-                                # 1. Fetch data from vnstock API
                                 from vnstock import Vnstock
+                                from technical_analysis import TechnicalAnalyzer, fetch_fundamental_data
+                                
                                 stock = Vnstock().stock(symbol=ticker, source='VCI')
                                 end_date = datetime.now()
-                                start_date = end_date - timedelta(days=450)  # Extra buffer for MA200
+                                start_date = end_date - timedelta(days=450)
                                 
                                 df = stock.quote.history(
                                     start=start_date.strftime("%Y-%m-%d"),
@@ -2237,29 +2237,20 @@ CHỈ phân tích LONG (MUA), KHÔNG đề cập SHORT."""
                                 )
                                 
                                 if df is None or df.empty:
-                                    st.warning(f"⚠️ Không có dữ liệu giá cho {ticker}")
-                                    continue
+                                    return None, ticker, "Không có dữ liệu giá"
                                 
-                                # Rename columns to match expected format
                                 df.columns = df.columns.str.lower()
                                 if 'time' in df.columns:
                                     df = df.rename(columns={'time': 'date'})
                                     df.set_index('date', inplace=True)
                                 
-                                # 2. Create TechnicalAnalyzer with DataFrame
-                                from technical_analysis import TechnicalAnalyzer, fetch_fundamental_data
                                 analyzer = TechnicalAnalyzer(df, days=400)
                                 indicators = analyzer.get_analysis_summary()
                                 
-                                # Validate indicators is dict
                                 if not isinstance(indicators, dict):
-                                    st.warning(f"⚠️ Dữ liệu {ticker} không hợp lệ")
-                                    continue
+                                    return None, ticker, "Dữ liệu không hợp lệ"
                                 
-                                # 3. Get fundamental data
                                 fundamental = fetch_fundamental_data(ticker)
-                                
-                                # 4. Merge data
                                 stock_indicators = dict(indicators)
                                 stock_indicators['fundamental_eps'] = fundamental.get('eps') if fundamental.get('eps') else 'N/A'
                                 stock_indicators['fundamental_pe'] = fundamental.get('pe') if fundamental.get('pe') else 'N/A'
@@ -2267,14 +2258,32 @@ CHỈ phân tích LONG (MUA), KHÔNG đề cập SHORT."""
                                 stock_indicators['fundamental_roe'] = fundamental.get('roe') if fundamental.get('roe') else 'N/A'
                                 stock_indicators['fundamental_revenue_growth'] = fundamental.get('revenue_growth') if fundamental.get('revenue_growth') else 'N/A'
                                 
-                                stocks_data.append({
-                                    'ticker': ticker,
-                                    'indicators': stock_indicators
-                                })
+                                return {'ticker': ticker, 'indicators': stock_indicators}, None, None
                             except Exception as e:
-                                st.warning(f"⚠️ Không thể lấy dữ liệu {ticker}: {str(e)[:50]}")
+                                return None, ticker, str(e)[:50]
+                        
+                        stocks_data = []
+                        errors = []
+                        
+                        # Parallel fetch with ThreadPoolExecutor
+                        with ThreadPoolExecutor(max_workers=5) as executor:
+                            futures = {executor.submit(fetch_stock_data, t): t for t in selected_tickers}
+                            progress_bar = st.progress(0)
+                            completed = 0
                             
-                            progress_bar.progress((i + 1) / len(selected_tickers))
+                            for future in as_completed(futures):
+                                result, error_ticker, error_msg = future.result()
+                                if result:
+                                    stocks_data.append(result)
+                                elif error_ticker:
+                                    errors.append(f"{error_ticker}: {error_msg}")
+                                
+                                completed += 1
+                                progress_bar.progress(completed / len(selected_tickers))
+                        
+                        # Show errors if any
+                        for err in errors:
+                            st.warning(f"⚠️ {err}")
                         
                         if stocks_data:
                             # Call AI to rank
