@@ -593,69 +593,90 @@ def fetch_fundamental_data(ticker: str) -> Dict:
     except Exception as e:
         pass  # Tiếp tục thử vnstock
     
-    # 2. Nếu chưa có data, thử lấy từ vnstock API
-    if not fundamental['has_data']:
+    # 2. Luôn lấy ratio từ vnstock API (bổ sung EPS, P/E, P/B, ROE nếu chưa có)
+    # Lấy ratio bất kể GSheets có data hay không
+    try:
+        from vnstock import Vnstock
+        
+        stock = Vnstock().stock(symbol=ticker, source='VCI')
+        
+        # Lấy ratio (EPS, P/E, P/B, ROE)
+        try:
+            ratio = stock.finance.ratio(period='quarter', lang='en')
+            if ratio is not None and not ratio.empty:
+                # Map các chỉ số - chỉ ghi đè nếu chưa có
+                if fundamental.get('eps') is None and 'EPS' in ratio.columns:
+                    fundamental['eps'] = float(ratio['EPS'].iloc[-1]) if pd.notna(ratio['EPS'].iloc[-1]) else None
+                if fundamental.get('pe') is None and 'P/E' in ratio.columns:
+                    fundamental['pe'] = float(ratio['P/E'].iloc[-1]) if pd.notna(ratio['P/E'].iloc[-1]) else None
+                if fundamental.get('pb') is None and 'P/B' in ratio.columns:
+                    fundamental['pb'] = float(ratio['P/B'].iloc[-1]) if pd.notna(ratio['P/B'].iloc[-1]) else None
+                if fundamental.get('roe') is None and 'ROE' in ratio.columns:
+                    fundamental['roe'] = float(ratio['ROE'].iloc[-1]) if pd.notna(ratio['ROE'].iloc[-1]) else None
+                
+                # Bổ sung thêm các chỉ số quan trọng
+                if 'ROA' in ratio.columns:
+                    fundamental['roa'] = float(ratio['ROA'].iloc[-1]) if pd.notna(ratio['ROA'].iloc[-1]) else None
+                if 'Debt to Equity' in ratio.columns:
+                    fundamental['debt_to_equity'] = float(ratio['Debt to Equity'].iloc[-1]) if pd.notna(ratio['Debt to Equity'].iloc[-1]) else None
+                if 'Current Ratio' in ratio.columns:
+                    fundamental['current_ratio'] = float(ratio['Current Ratio'].iloc[-1]) if pd.notna(ratio['Current Ratio'].iloc[-1]) else None
+                if 'Quick Ratio' in ratio.columns:
+                    fundamental['quick_ratio'] = float(ratio['Quick Ratio'].iloc[-1]) if pd.notna(ratio['Quick Ratio'].iloc[-1]) else None
+                if 'Gross Margin' in ratio.columns:
+                    fundamental['gross_margin'] = float(ratio['Gross Margin'].iloc[-1]) if pd.notna(ratio['Gross Margin'].iloc[-1]) else None
+                if 'Net Margin' in ratio.columns:
+                    fundamental['net_margin'] = float(ratio['Net Margin'].iloc[-1]) if pd.notna(ratio['Net Margin'].iloc[-1]) else None
+                
+                fundamental['has_data'] = True
+                if fundamental['source'] is None:
+                    fundamental['source'] = 'vnstock'
+        except:
+            pass
+    except Exception as e:
+        pass
+
+    # 3. Nếu vẫn chưa có income data, thử lấy từ vnstock income_statement
+    if fundamental.get('revenue') is None:
         try:
             from vnstock import Vnstock
-            
             stock = Vnstock().stock(symbol=ticker, source='VCI')
             
-            # Lấy ratio
-            try:
-                ratio = stock.finance.ratio(period='quarter', lang='en')
-                if ratio is not None and not ratio.empty:
-                    latest_ratio = ratio.iloc[-1] if len(ratio) > 0 else None
-                    if latest_ratio is not None:
-                        # Map các chỉ số
-                        if 'EPS' in ratio.columns:
-                            fundamental['eps'] = float(ratio['EPS'].iloc[-1]) if pd.notna(ratio['EPS'].iloc[-1]) else None
-                        if 'P/E' in ratio.columns:
-                            fundamental['pe'] = float(ratio['P/E'].iloc[-1]) if pd.notna(ratio['P/E'].iloc[-1]) else None
-                        if 'P/B' in ratio.columns:
-                            fundamental['pb'] = float(ratio['P/B'].iloc[-1]) if pd.notna(ratio['P/B'].iloc[-1]) else None
-                        if 'ROE' in ratio.columns:
-                            fundamental['roe'] = float(ratio['ROE'].iloc[-1]) if pd.notna(ratio['ROE'].iloc[-1]) else None
-            except:
-                pass
-            
             # Lấy income statement
-            try:
-                income = stock.finance.income_statement(period='quarter')
-                if income is not None and not income.empty:
-                    income.columns = income.columns.str.lower().str.replace(' ', '_')
-                    latest = income.iloc[-1]
-                    
-                    revenue_cols = ['revenue', 'revenue_(bn._vnd)', 'net_revenue']
-                    profit_cols = ['net_income', 'attributable_to_parent_company', 'share_holder_income']
-                    
+            income = stock.finance.income_statement(period='quarter')
+            if income is not None and not income.empty:
+                income.columns = income.columns.str.lower().str.replace(' ', '_')
+                latest = income.iloc[-1]
+                
+                revenue_cols = ['revenue', 'revenue_(bn._vnd)', 'net_revenue']
+                profit_cols = ['net_income', 'attributable_to_parent_company', 'share_holder_income']
+                
+                for col in revenue_cols:
+                    if col in income.columns and pd.notna(latest[col]):
+                        fundamental['revenue'] = float(latest[col])
+                        break
+                for col in profit_cols:
+                    if col in income.columns and pd.notna(latest[col]):
+                        fundamental['net_income'] = float(latest[col])
+                        break
+                
+                # Growth
+                if len(income) >= 2:
+                    prev = income.iloc[-2]
                     for col in revenue_cols:
-                        if col in income.columns and pd.notna(latest[col]):
-                            fundamental['revenue'] = float(latest[col])
+                        if col in income.columns:
+                            if pd.notna(latest[col]) and pd.notna(prev[col]) and float(prev[col]) != 0:
+                                fundamental['revenue_growth'] = (float(latest[col]) - float(prev[col])) / abs(float(prev[col])) * 100
                             break
                     for col in profit_cols:
-                        if col in income.columns and pd.notna(latest[col]):
-                            fundamental['net_income'] = float(latest[col])
+                        if col in income.columns:
+                            if pd.notna(latest[col]) and pd.notna(prev[col]) and float(prev[col]) != 0:
+                                fundamental['profit_growth'] = (float(latest[col]) - float(prev[col])) / abs(float(prev[col])) * 100
                             break
-                    
-                    # Growth
-                    if len(income) >= 2:
-                        prev = income.iloc[-2]
-                        for col in revenue_cols:
-                            if col in income.columns:
-                                if pd.notna(latest[col]) and pd.notna(prev[col]) and float(prev[col]) != 0:
-                                    fundamental['revenue_growth'] = (float(latest[col]) - float(prev[col])) / abs(float(prev[col])) * 100
-                                break
-                        for col in profit_cols:
-                            if col in income.columns:
-                                if pd.notna(latest[col]) and pd.notna(prev[col]) and float(prev[col]) != 0:
-                                    fundamental['profit_growth'] = (float(latest[col]) - float(prev[col])) / abs(float(prev[col])) * 100
-                                break
-                    
-                    fundamental['has_data'] = True
-                    fundamental['source'] = 'vnstock'
-            except:
-                pass
                 
+                fundamental['has_data'] = True
+                if fundamental['source'] is None:
+                    fundamental['source'] = 'vnstock'
         except Exception as e:
             pass
     

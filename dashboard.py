@@ -1996,36 +1996,80 @@ elif page == "🌐 Khuyến Nghị":
                         # 3.5 Fundamental Data Display
                         if fundamental.get('has_data'):
                             st.markdown("### 📈 Dữ Liệu Cơ Bản (Fundamental)")
+                            
+                            # Row 1: Valuation metrics
                             fund_col1, fund_col2, fund_col3, fund_col4 = st.columns(4)
                             
                             with fund_col1:
                                 if fundamental.get('eps'):
                                     st.metric("EPS", f"{fundamental['eps']:,.0f}")
-                                if fundamental.get('revenue'):
-                                    rev_display = fundamental['revenue'] / 1e9 if fundamental['revenue'] > 1e9 else fundamental['revenue']
-                                    st.metric("Doanh thu", f"{rev_display:,.1f} tỷ")
+                                else:
+                                    st.metric("EPS", "N/A")
                             
                             with fund_col2:
                                 if fundamental.get('pe'):
-                                    st.metric("P/E", f"{fundamental['pe']:.1f}")
-                                if fundamental.get('net_income'):
-                                    profit_display = fundamental['net_income'] / 1e9 if fundamental['net_income'] > 1e9 else fundamental['net_income']
-                                    st.metric("Lợi nhuận", f"{profit_display:,.1f} tỷ")
+                                    pe_val = fundamental['pe']
+                                    pe_status = "🟢" if pe_val < 15 else "🟡" if pe_val < 25 else "🔴"
+                                    st.metric("P/E", f"{pe_status} {pe_val:.1f}")
+                                else:
+                                    st.metric("P/E", "N/A")
                             
                             with fund_col3:
                                 if fundamental.get('pb'):
-                                    st.metric("P/B", f"{fundamental['pb']:.1f}")
-                                if fundamental.get('revenue_growth') is not None:
-                                    growth_color = "normal" if fundamental['revenue_growth'] >= 0 else "inverse"
-                                    st.metric("Tăng trưởng DT", f"{fundamental['revenue_growth']:.1f}%")
+                                    pb_val = fundamental['pb']
+                                    pb_status = "🟢" if pb_val < 2 else "🟡" if pb_val < 4 else "🔴"
+                                    st.metric("P/B", f"{pb_status} {pb_val:.1f}")
+                                else:
+                                    st.metric("P/B", "N/A")
                             
                             with fund_col4:
                                 if fundamental.get('roe'):
-                                    st.metric("ROE", f"{fundamental['roe']:.1f}%")
-                                if fundamental.get('profit_growth') is not None:
-                                    st.metric("Tăng trưởng LN", f"{fundamental['profit_growth']:.1f}%")
+                                    roe_val = fundamental['roe']
+                                    roe_status = "🟢" if roe_val > 15 else "🟡" if roe_val > 10 else "🔴"
+                                    st.metric("ROE", f"{roe_status} {roe_val:.1f}%")
+                                else:
+                                    st.metric("ROE", "N/A")
                             
-                            st.caption(f"📌 Nguồn: {fundamental.get('source', 'N/A').upper()}")
+                            # Row 2: Profitability & Financial Health
+                            fund_col5, fund_col6, fund_col7, fund_col8 = st.columns(4)
+                            
+                            with fund_col5:
+                                if fundamental.get('roa'):
+                                    roa_val = fundamental['roa']
+                                    st.metric("ROA", f"{roa_val:.1f}%")
+                                elif fundamental.get('revenue'):
+                                    rev_display = fundamental['revenue'] / 1e9 if fundamental['revenue'] > 1e9 else fundamental['revenue']
+                                    st.metric("Doanh thu", f"{rev_display:,.0f} tỷ")
+                            
+                            with fund_col6:
+                                if fundamental.get('net_margin'):
+                                    nm_val = fundamental['net_margin']
+                                    nm_status = "🟢" if nm_val > 10 else "🟡" if nm_val > 5 else "🔴"
+                                    st.metric("Biên LN ròng", f"{nm_status} {nm_val:.1f}%")
+                                elif fundamental.get('net_income'):
+                                    profit_display = fundamental['net_income'] / 1e9 if fundamental['net_income'] > 1e9 else fundamental['net_income']
+                                    st.metric("Lợi nhuận", f"{profit_display:,.0f} tỷ")
+                            
+                            with fund_col7:
+                                if fundamental.get('debt_to_equity'):
+                                    de_val = fundamental['debt_to_equity']
+                                    de_status = "🟢" if de_val < 1 else "🟡" if de_val < 2 else "🔴"
+                                    st.metric("D/E", f"{de_status} {de_val:.2f}")
+                                elif fundamental.get('current_ratio'):
+                                    cr_val = fundamental['current_ratio']
+                                    st.metric("Current Ratio", f"{cr_val:.2f}")
+                            
+                            with fund_col8:
+                                if fundamental.get('revenue_growth') is not None:
+                                    rg_val = fundamental['revenue_growth']
+                                    rg_status = "🟢" if rg_val > 10 else "🟡" if rg_val > 0 else "🔴"
+                                    st.metric("Tăng trưởng DT", f"{rg_status} {rg_val:.1f}%")
+                                elif fundamental.get('profit_growth') is not None:
+                                    pg_val = fundamental['profit_growth']
+                                    pg_status = "🟢" if pg_val > 10 else "🟡" if pg_val > 0 else "🔴"
+                                    st.metric("Tăng trưởng LN", f"{pg_status} {pg_val:.1f}%")
+                            
+                            st.caption(f"📌 Nguồn: {fundamental.get('source', 'N/A').upper()} | 🟢 Tốt 🟡 Trung bình 🔴 Cần lưu ý")
                         else:
                             st.info("ℹ️ Chưa có dữ liệu Fundamental cho mã này. Chạy `python finance.py --tickers " + ai_ticker + "` để cào.")
                         
