@@ -3060,10 +3060,11 @@ elif page == "⚙️ Hệ thống":
         # Gemini Model Selector
         st.markdown("---")
         gemini_models = {
-            'gemini-2.0-flash': '⚡ Gemini 2.0 Flash (Nhanh, 15 req/min)',
-            'gemini-1.5-flash': '⚡ Gemini 1.5 Flash (Nhanh, 15 req/min)',
-            'gemini-1.5-pro': '🧠 Gemini 1.5 Pro (Thông minh hơn, 2 req/min)',
-            'gemini-pro': '🧠 Gemini Pro Legacy'
+            'gemini-2.0-flash': '⚡ Gemini 2.0 Flash (Nhanh nhất)',
+            'gemini-2.0-flash-thinking-exp': '🧠 Gemini 2.0 Flash Thinking (Suy luận tốt)',
+            'gemini-1.5-flash': '⚡ Gemini 1.5 Flash',
+            'gemini-1.5-pro': '🧠 Gemini 1.5 Pro (Cần billing)',
+            'gemini-exp-1206': '🔬 Gemini Experimental (Mới nhất)'
         }
         
         current_model = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
