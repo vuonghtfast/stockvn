@@ -2962,6 +2962,16 @@ elif page == "⚙️ Hệ thống":
             st.caption("**Status:**")
             if gemini_key_current and gemini_key_current not in ['', 'your_gemini_api_key_here']:
                 st.success(f"✅ Đã có ({gemini_key_masked})")
+                # Test connection button
+                if st.button("🔍 Test", key="test_gemini", help="Kiểm tra kết nối Gemini"):
+                    try:
+                        import google.generativeai as genai
+                        genai.configure(api_key=gemini_key_current)
+                        model = genai.GenerativeModel('gemini-2.0-flash')
+                        response = model.generate_content("Say 'OK' in one word")
+                        st.success(f"✅ Kết nối thành công! Model: gemini-2.0-flash")
+                    except Exception as e:
+                        st.error(f"❌ Lỗi: {str(e)[:50]}")
             else:
                 st.warning("⚠️ Chưa có")
         
