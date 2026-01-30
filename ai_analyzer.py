@@ -54,8 +54,8 @@ class AIAnalyzer:
                 raise ValueError("Thiếu GEMINI_API_KEY trong .env")
             
             genai.configure(api_key=api_key)
-            # Sử dụng Flash (miễn phí, nhanh) hoặc Pro (chính xác hơn)
-            model_name = os.getenv('GEMINI_MODEL', 'gemini-1.5-flash')
+            # Model names: gemini-1.5-flash, gemini-1.5-pro, gemini-pro
+            model_name = os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')
             self.client = genai.GenerativeModel(model_name)
             self.model_name = model_name
         except ImportError:

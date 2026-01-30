@@ -1855,6 +1855,26 @@ elif page == "🌐 Khuyến Nghị":
                 help="Chọn nhà cung cấp AI (Gemini mặc định)"
             )
         
+        # Trading parameters (collapsible)
+        with st.expander("⚙️ Tham Số Giao Dịch", expanded=False):
+            param_col1, param_col2, param_col3 = st.columns(3)
+            with param_col1:
+                tp1_pct = st.number_input("TP1 (%)", min_value=1.0, max_value=50.0, 
+                    value=float(os.getenv('TP1_PCT', 5)), step=1.0, key="ai_tp1")
+                tp2_pct = st.number_input("TP2 (%)", min_value=1.0, max_value=50.0, 
+                    value=float(os.getenv('TP2_PCT', 10)), step=1.0, key="ai_tp2")
+            with param_col2:
+                tp3_pct = st.number_input("TP3 (%)", min_value=1.0, max_value=50.0, 
+                    value=float(os.getenv('TP3_PCT', 15)), step=1.0, key="ai_tp3")
+                sl_pct = st.number_input("Stop Loss (%)", min_value=1.0, max_value=20.0, 
+                    value=float(os.getenv('SL_PCT', 6)), step=0.5, key="ai_sl",
+                    help="% cắt lỗ tính từ giá Entry (mặc định 6%)")
+            with param_col3:
+                sl_buffer_pct = st.number_input("SL Buffer (%)", min_value=1.0, max_value=10.0, 
+                    value=float(os.getenv('SL_BUFFER_PCT', 3)), step=0.5, key="ai_sl_buffer",
+                    help="Buffer % dưới MA50/Support khi tính SL")
+                st.caption(f"**Tóm tắt:** TP: +{tp1_pct}%/+{tp2_pct}%/+{tp3_pct}%, SL: -{sl_pct}%")
+        
         # Check API key
         api_key_env = {
             'gemini': 'GEMINI_API_KEY',
@@ -1906,7 +1926,11 @@ elif page == "🌐 Khuyến Nghị":
                         
                         # 2. Calculate technical indicators
                         from technical_analysis import TechnicalAnalyzer
-                        analyzer = TechnicalAnalyzer(df, days=ai_days)
+                        analyzer = TechnicalAnalyzer(
+                            df, days=ai_days,
+                            tp1_pct=tp1_pct, tp2_pct=tp2_pct, tp3_pct=tp3_pct,
+                            sl_pct=sl_pct, sl_buffer_pct=sl_buffer_pct
+                        )
                         indicators = analyzer.get_analysis_summary()
                         
                         # 3. Quick summary before AI
@@ -1923,13 +1947,18 @@ elif page == "🌐 Khuyến Nghị":
                             trend_emoji = "📈" if "uptrend" in indicators['trend'] else "📉" if "downtrend" in indicators['trend'] else "➡️"
                             st.metric("Xu hướng", f"{trend_emoji} {indicators['trend']}")
                         
+                        # Calculate SL % from entry
+                        entry_price = indicators['entry_low']
+                        sl_price = indicators['stop_loss']
+                        sl_percent = ((entry_price - sl_price) / entry_price * 100) if entry_price > 0 else 0
+                        
                         col_lvl1, col_lvl2, col_lvl3, col_lvl4 = st.columns(4)
                         with col_lvl1:
                             st.metric("Hỗ trợ", f"{indicators['support']:,.1f}")
                         with col_lvl2:
                             st.metric("Kháng cự", f"{indicators['resistance']:,.1f}")
                         with col_lvl3:
-                            st.metric("Stop Loss", f"{indicators['stop_loss']:,.1f}")
+                            st.metric("Stop Loss", f"{sl_price:,.1f} (-{sl_percent:.1f}%)")
                         with col_lvl4:
                             rec_color = "✅" if "MUA" in indicators['recommendation'] else "❌" if "BÁN" in indicators['recommendation'] else "⚖️"
                             st.metric("Khuyến nghị", f"{rec_color} {indicators['recommendation']}")

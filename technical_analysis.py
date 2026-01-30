@@ -17,16 +17,41 @@ class TechnicalAnalyzer:
     Sử dụng:
         analyzer = TechnicalAnalyzer(df, days=400)
         indicators = analyzer.get_analysis_summary()
+        
+    Tuỳ chỉnh tham số:
+        analyzer = TechnicalAnalyzer(df, days=400, tp1_pct=5, tp2_pct=10, tp3_pct=15, sl_pct=6)
     """
     
-    def __init__(self, df: pd.DataFrame, days: int = 400):
+    # Default trading parameters (có thể override qua __init__ hoặc env)
+    DEFAULT_TP1_PCT = 5   # Take Profit 1: +5%
+    DEFAULT_TP2_PCT = 10  # Take Profit 2: +10%
+    DEFAULT_TP3_PCT = 15  # Take Profit 3: +15%
+    DEFAULT_SL_PCT = 6    # Stop Loss: -6%
+    DEFAULT_SL_BUFFER_PCT = 3  # Buffer dưới MA50/Support: 3%
+    
+    def __init__(self, df: pd.DataFrame, days: int = 400,
+                 tp1_pct: float = None, tp2_pct: float = None, tp3_pct: float = None,
+                 sl_pct: float = None, sl_buffer_pct: float = None):
         """
         Args:
             df: DataFrame với cột: open, high, low, close, volume
             days: Số ngày dữ liệu để phân tích (mặc định 400)
+            tp1_pct: Take Profit 1 % (mặc định 5%)
+            tp2_pct: Take Profit 2 % (mặc định 10%)
+            tp3_pct: Take Profit 3 % (mặc định 15%)
+            sl_pct: Stop Loss % default (mặc định 6%)
+            sl_buffer_pct: Buffer % dưới MA50/Support (mặc định 3%)
         """
         self.original_df = df.copy()
         self.days = days
+        
+        # Trading parameters - có thể override
+        import os
+        self.tp1_pct = tp1_pct if tp1_pct is not None else float(os.getenv('TP1_PCT', self.DEFAULT_TP1_PCT))
+        self.tp2_pct = tp2_pct if tp2_pct is not None else float(os.getenv('TP2_PCT', self.DEFAULT_TP2_PCT))
+        self.tp3_pct = tp3_pct if tp3_pct is not None else float(os.getenv('TP3_PCT', self.DEFAULT_TP3_PCT))
+        self.sl_pct = sl_pct if sl_pct is not None else float(os.getenv('SL_PCT', self.DEFAULT_SL_PCT))
+        self.sl_buffer_pct = sl_buffer_pct if sl_buffer_pct is not None else float(os.getenv('SL_BUFFER_PCT', self.DEFAULT_SL_BUFFER_PCT))
         
         # Lọc dữ liệu theo số ngày
         if len(df) > days:
@@ -296,17 +321,17 @@ class TechnicalAnalyzer:
     
     def calculate_take_profits(self, entry: float = None) -> Dict:
         """
-        Tính các mức chốt lời TP1 (+5%), TP2 (+10%), TP3 (+15%)
+        Tính các mức chốt lời dựa trên tham số tp1_pct, tp2_pct, tp3_pct
         """
         if entry is None:
             entry = self.get_current_price()
         
         resistance = self.find_support_resistance()['resistance']
         
-        # TP dựa trên % cố định và resistance
-        tp1 = round(entry * 1.05, 1)  # +5%
-        tp2 = round(entry * 1.10, 1)  # +10%
-        tp3 = round(entry * 1.15, 1)  # +15%
+        # TP dựa trên % từ tham số
+        tp1 = round(entry * (1 + self.tp1_pct / 100), 1)
+        tp2 = round(entry * (1 + self.tp2_pct / 100), 1)
+        tp3 = round(entry * (1 + self.tp3_pct / 100), 1)
         
         # Điều chỉnh TP1 theo resistance nếu gần
         if resistance > entry and resistance < tp1:
@@ -320,22 +345,15 @@ class TechnicalAnalyzer:
     
     def calculate_stop_loss(self, entry: float = None) -> float:
         """
-        Tính mức cắt lỗ
-        Dựa trên MA50 hoặc support
+        Tính mức cắt lỗ = Entry × (1 - sl_pct%)
+        Đơn giản và nhất quán với tham số SL_PCT
         """
         if entry is None:
             entry = self.get_current_price()
         
-        ma50 = self.get_ma(50)
-        support = self.find_support_resistance()['support']
-        
-        # Stop loss dưới MA50 hoặc support
-        if ma50 > 0 and ma50 < entry:
-            stop_loss = ma50 * 0.97  # Dưới MA50 3%
-        elif support > 0 and support < entry:
-            stop_loss = support * 0.97  # Dưới support 3%
-        else:
-            stop_loss = entry * 0.94  # -6% default
+        # Stop loss = Entry - sl_pct%
+        sl_multiplier = 1 - (self.sl_pct / 100)  # VD: 6% -> 0.94
+        stop_loss = entry * sl_multiplier
         
         return round(stop_loss, 1)
     
