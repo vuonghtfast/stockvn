@@ -2221,24 +2221,44 @@ CHỈ phân tích LONG (MUA), KHÔNG đề cập SHORT."""
                         from concurrent.futures import ThreadPoolExecutor, as_completed
                         
                         def fetch_stock_data(ticker):
-                            """Fetch data for a single stock"""
+                            """Fetch data for a single stock with retry and fallback source"""
+                            import time
+                            from vnstock import Vnstock
+                            from technical_analysis import TechnicalAnalyzer, fetch_fundamental_data
+                            
+                            sources = ['VCI', 'TCBS']  # Try VCI first, then TCBS
+                            df = None
+                            
+                            for source in sources:
+                                for attempt in range(2):  # 2 attempts per source
+                                    try:
+                                        stock = Vnstock().stock(symbol=ticker, source=source)
+                                        end_date = datetime.now()
+                                        start_date = end_date - timedelta(days=450)
+                                        
+                                        df = stock.quote.history(
+                                            start=start_date.strftime("%Y-%m-%d"),
+                                            end=end_date.strftime("%Y-%m-%d"),
+                                            interval='1D'
+                                        )
+                                        
+                                        if df is not None and not df.empty:
+                                            break  # Success
+                                        
+                                    except Exception as e:
+                                        if "403" in str(e) or "Forbidden" in str(e):
+                                            time.sleep(1)  # Wait before retry
+                                            continue
+                                        # Other errors, try next source
+                                        break
+                                
+                                if df is not None and not df.empty:
+                                    break  # Got data, exit source loop
+                            
+                            if df is None or df.empty:
+                                return None, ticker, "Không lấy được dữ liệu"
+                            
                             try:
-                                from vnstock import Vnstock
-                                from technical_analysis import TechnicalAnalyzer, fetch_fundamental_data
-                                
-                                stock = Vnstock().stock(symbol=ticker, source='VCI')
-                                end_date = datetime.now()
-                                start_date = end_date - timedelta(days=450)
-                                
-                                df = stock.quote.history(
-                                    start=start_date.strftime("%Y-%m-%d"),
-                                    end=end_date.strftime("%Y-%m-%d"),
-                                    interval='1D'
-                                )
-                                
-                                if df is None or df.empty:
-                                    return None, ticker, "Không có dữ liệu giá"
-                                
                                 df.columns = df.columns.str.lower()
                                 if 'time' in df.columns:
                                     df = df.rename(columns={'time': 'date'})
