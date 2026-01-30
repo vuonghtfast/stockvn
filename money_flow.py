@@ -258,9 +258,21 @@ def main():
     positive_sectors = sector_summary[sector_summary['net_flow'] > 0].head(3)
     negative_sectors = sector_summary[sector_summary['net_flow'] < 0].tail(3).iloc[::-1]
     
-    # Top 15 Stocks by NET FLOW (absolute value, to get both buy and sell leaders)
-    # Get top 15 by highest net_flow (positive = buy, negative = sell)
-    top_buy_stocks = df[df['net_flow'] > 0].nlargest(15, 'net_flow')
+    # Top 5 MUA stocks from each of Top 3 POSITIVE sectors (15 stocks)
+    top_buy_list = []
+    for sector in positive_sectors['sector']:
+        s_stocks = df[df['sector'] == sector].nlargest(5, 'net_flow')
+        s_stocks = s_stocks[s_stocks['net_flow'] > 0]  # Only positive flow
+        top_buy_list.append(s_stocks)
+    top_buy_stocks = pd.concat(top_buy_list) if top_buy_list else pd.DataFrame()
+    
+    # Top 5 BÁN stocks from each of Top 3 NEGATIVE sectors (15 stocks)
+    top_sell_list = []
+    for sector in negative_sectors['sector']:
+        s_stocks = df[df['sector'] == sector].nsmallest(5, 'net_flow')
+        s_stocks = s_stocks[s_stocks['net_flow'] < 0]  # Only negative flow
+        top_sell_list.append(s_stocks)
+    top_sell_stocks = pd.concat(top_sell_list) if top_sell_list else pd.DataFrame()
     
     # 4. Save to Sheets
     try:
@@ -273,20 +285,28 @@ def main():
         vn_tz = timezone(timedelta(hours=7))
         timestamp = datetime.now(vn_tz).strftime('%Y-%m-%d %H:%M:%S')
         
-        # Check if we have meaningful data (at least some stocks with net_flow != 0)
-        has_meaningful_data = len(top_buy_stocks) > 0 and top_buy_stocks['net_flow'].abs().sum() > 0.01
+        # Check if we have meaningful data
+        has_buy_data = len(top_buy_stocks) > 0 and top_buy_stocks['net_flow'].abs().sum() > 0.01
+        has_sell_data = len(top_sell_stocks) > 0 and top_sell_stocks['net_flow'].abs().sum() > 0.01
         
-        if not has_meaningful_data:
+        if not has_buy_data and not has_sell_data:
             print(f"\n[!] Không có dữ liệu mới (có thể ngoài giờ giao dịch). Giữ nguyên dữ liệu cũ.")
             return
         
         # Prepare Rows
-        # Stocks - Top 15 by net_flow
+        # BUY Stocks - Top 5 from each of Top 3 positive sectors
         if not top_buy_stocks.empty:
-            stocks_out = top_buy_stocks[['timestamp', 'ticker', 'sector', 'price', 'volume', 'buy_flow', 'sell_flow', 'net_flow']].copy()
-            stocks_out['type'] = 'stock'
+            buy_out = top_buy_stocks[['timestamp', 'ticker', 'sector', 'price', 'volume', 'buy_flow', 'sell_flow', 'net_flow']].copy()
+            buy_out['type'] = 'stock_buy'
         else:
-            stocks_out = pd.DataFrame()
+            buy_out = pd.DataFrame()
+        
+        # SELL Stocks - Top 5 from each of Top 3 negative sectors
+        if not top_sell_stocks.empty:
+            sell_out = top_sell_stocks[['timestamp', 'ticker', 'sector', 'price', 'volume', 'buy_flow', 'sell_flow', 'net_flow']].copy()
+            sell_out['type'] = 'stock_sell'
+        else:
+            sell_out = pd.DataFrame()
             
         # Pos Sectors
         pos_out = positive_sectors[['sector', 'buy_flow', 'sell_flow', 'net_flow', 'stock_count']].copy()
@@ -304,15 +324,15 @@ def main():
         neg_out['price'] = 0
         neg_out['volume'] = 0
         
-        # Combine
-        final_df = pd.concat([stocks_out, pos_out, neg_out], ignore_index=True)
+        # Combine: buy stocks + sell stocks + positive sectors + negative sectors
+        final_df = pd.concat([buy_out, sell_out, pos_out, neg_out], ignore_index=True)
         col_order = ['timestamp', 'type', 'ticker', 'sector', 'price', 'volume', 'buy_flow', 'sell_flow', 'net_flow']
         final_df = final_df[[c for c in col_order if c in final_df.columns]]
         
         # Write (only if we have meaningful data - checked above)
         mf_ws.clear()
         mf_ws.update([final_df.columns.values.tolist()] + final_df.astype(str).values.tolist())
-        print(f"\n[SUCCESS] Saved {len(stocks_out)} stocks + {len(pos_out)} pos sectors + {len(neg_out)} neg sectors to money_flow_top.")
+        print(f"\n[SUCCESS] Saved {len(buy_out)} buy stocks + {len(sell_out)} sell stocks + {len(pos_out)+len(neg_out)} sectors to money_flow_top.")
         
         # ===== Auto-save to "Danh mục mua mạnh" watchlist =====
         if not top_buy_stocks.empty:
