@@ -3214,32 +3214,63 @@ AI_ANALYSIS_DAYS=400
     st.markdown("---")
     st.markdown("**Chọn Mã Chứng Khoán**")
     
+    # Get tickers from watchlist_flow
+    watchlist_tickers = []
+    try:
+        watchlist_df = get_watchlist('flow')
+        if not watchlist_df.empty and 'ticker' in watchlist_df.columns:
+            watchlist_tickers = watchlist_df['ticker'].tolist()
+    except:
+        pass
+    
     col_a, col_b = st.columns([3, 1])
     
     with col_a:
         ticker_mode = st.radio(
             "Ticker mode",
-            options=['Tất cả mã', 'Chọn mã cụ thể'],
+            options=['Từ Watchlist', 'Nhập mã khác', 'Tất cả'],
             horizontal=True,
-            label_visibility="collapsed"
+            label_visibility="collapsed",
+            help="Watchlist = watchlist_flow | Nhập mã khác = tự nhập | Tất cả = toàn bộ watchlist"
         )
     
     with col_b:
-        if ticker_mode == 'Tất cả mã':
-            tickers = fetch_ticker_list()
-            st.metric("Tổng số mã", len(tickers))
+        if ticker_mode == 'Tất cả':
+            st.metric("Tổng số mã", len(watchlist_tickers))
     
-    if ticker_mode == 'Chọn mã cụ thể':
-        all_tickers = fetch_ticker_list()
-        selected_tickers = st.multiselect(
-            "Chọn mã",
-            options=all_tickers,
-            default=['VNM', 'HPG', 'FPT'] if all(t in all_tickers for t in ['VNM', 'HPG', 'FPT']) else all_tickers[:3],
-            label_visibility="collapsed"
+    tickers_arg = None
+    
+    if ticker_mode == 'Từ Watchlist':
+        if watchlist_tickers:
+            selected_tickers = st.multiselect(
+                "📌 Chọn mã từ watchlist_flow",
+                options=watchlist_tickers,
+                default=watchlist_tickers[:min(5, len(watchlist_tickers))],
+                help="Chọn 1 hoặc nhiều mã từ danh sách theo dõi"
+            )
+            if selected_tickers:
+                tickers_arg = ','.join(selected_tickers)
+                st.success(f"✅ Đã chọn {len(selected_tickers)} mã: {', '.join(selected_tickers)}")
+        else:
+            st.warning("⚠️ Chưa có mã trong watchlist_flow. Vui lòng thêm mã vào Danh Sách Theo Dõi trước.")
+    
+    elif ticker_mode == 'Nhập mã khác':
+        custom_input = st.text_input(
+            "✏️ Nhập mã cổ phiếu (cách nhau bằng dấu phẩy)",
+            placeholder="VD: VNM, FPT, HPG, TCB",
+            help="Nhập các mã cổ phiếu cách nhau bằng dấu phẩy"
         )
-        tickers_arg = ','.join(selected_tickers) if selected_tickers else None
-    else:
-        tickers_arg = None
+        if custom_input:
+            # Clean and validate
+            custom_tickers = [t.strip().upper() for t in custom_input.split(',') if t.strip()]
+            if custom_tickers:
+                tickers_arg = ','.join(custom_tickers)
+                st.success(f"✅ Sẽ cào {len(custom_tickers)} mã: {', '.join(custom_tickers)}")
+    
+    else:  # Tất cả
+        if watchlist_tickers:
+            tickers_arg = ','.join(watchlist_tickers)
+            st.info(f"ℹ️ Sẽ cào tất cả {len(watchlist_tickers)} mã từ watchlist_flow")
     
     # Summary
     st.markdown("---")
