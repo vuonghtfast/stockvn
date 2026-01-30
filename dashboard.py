@@ -1993,6 +1993,42 @@ elif page == "🌐 Khuyến Nghị":
                             rec_color = "✅" if "MUA" in indicators['recommendation'] else "❌" if "BÁN" in indicators['recommendation'] else "⚖️"
                             st.metric("Khuyến nghị", f"{rec_color} {indicators['recommendation']}")
                         
+                        # 3.5 Fundamental Data Display
+                        if fundamental.get('has_data'):
+                            st.markdown("### 📈 Dữ Liệu Cơ Bản (Fundamental)")
+                            fund_col1, fund_col2, fund_col3, fund_col4 = st.columns(4)
+                            
+                            with fund_col1:
+                                if fundamental.get('eps'):
+                                    st.metric("EPS", f"{fundamental['eps']:,.0f}")
+                                if fundamental.get('revenue'):
+                                    rev_display = fundamental['revenue'] / 1e9 if fundamental['revenue'] > 1e9 else fundamental['revenue']
+                                    st.metric("Doanh thu", f"{rev_display:,.1f} tỷ")
+                            
+                            with fund_col2:
+                                if fundamental.get('pe'):
+                                    st.metric("P/E", f"{fundamental['pe']:.1f}")
+                                if fundamental.get('net_income'):
+                                    profit_display = fundamental['net_income'] / 1e9 if fundamental['net_income'] > 1e9 else fundamental['net_income']
+                                    st.metric("Lợi nhuận", f"{profit_display:,.1f} tỷ")
+                            
+                            with fund_col3:
+                                if fundamental.get('pb'):
+                                    st.metric("P/B", f"{fundamental['pb']:.1f}")
+                                if fundamental.get('revenue_growth') is not None:
+                                    growth_color = "normal" if fundamental['revenue_growth'] >= 0 else "inverse"
+                                    st.metric("Tăng trưởng DT", f"{fundamental['revenue_growth']:.1f}%")
+                            
+                            with fund_col4:
+                                if fundamental.get('roe'):
+                                    st.metric("ROE", f"{fundamental['roe']:.1f}%")
+                                if fundamental.get('profit_growth') is not None:
+                                    st.metric("Tăng trưởng LN", f"{fundamental['profit_growth']:.1f}%")
+                            
+                            st.caption(f"📌 Nguồn: {fundamental.get('source', 'N/A').upper()}")
+                        else:
+                            st.info("ℹ️ Chưa có dữ liệu Fundamental cho mã này. Chạy `python finance.py --tickers " + ai_ticker + "` để cào.")
+                        
                         st.markdown("---")
                         
                         # 4. Generate AI report
