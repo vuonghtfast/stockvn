@@ -2180,14 +2180,33 @@ elif page == "🌐 Khuyến Nghị":
         SL = Entry × (1 - SL_PCT%)    # Mặc định -6%
         ```
         
+        #### Dữ liệu Fundamental (Cơ bản):
+        
+        | Chỉ số | Nguồn | Ý nghĩa |
+        |--------|-------|---------|
+        | **EPS** | vnstock API | Lợi nhuận trên mỗi cổ phiếu |
+        | **P/E** | vnstock API | Định giá so với lợi nhuận |
+        | **P/B** | vnstock API | Định giá so với giá trị sổ sách |
+        | **ROE** | vnstock API | Hiệu quả sử dụng vốn |
+        | **Doanh thu** | GSheets / vnstock | Doanh thu quý gần nhất |
+        | **Lợi nhuận** | GSheets / vnstock | Lợi nhuận ròng quý gần nhất |
+        | **Tăng trưởng** | Tính từ 2 kỳ | % thay đổi QoQ |
+        
+        **Luồng lấy Fundamental:**
+        ```
+        1. Thử GSheets (sheet: income) trước
+        2. Nếu không có → Fallback vnstock API
+        ```
+        
         #### AI Prompt Structure:
-        AI được cung cấp toàn bộ dữ liệu trên và yêu cầu tạo báo cáo 6 phần:
+        AI được cung cấp toàn bộ dữ liệu trên và yêu cầu tạo báo cáo **7 phần**:
         1. **Xu hướng & Cấu trúc giá** - Golden Alignment, Wyckoff Phase
         2. **Price Action** - Hành động giá, Pattern nến
         3. **Chỉ báo kỹ thuật** - RSI, MACD, Volume
-        4. **Vùng giá quan trọng** - Support, Resistance
-        5. **Chiến lược giao dịch** - Entry, TP, SL (CHỈ LONG, không Short)
-        6. **Rủi ro** - Các điều kiện vô hiệu hóa
+        4. **Phân tích cơ bản (Fundamental)** 🆕 - P/E, ROE, Tăng trưởng
+        5. **Vùng giá quan trọng** - Support, Resistance
+        6. **Chiến lược giao dịch** - Entry, TP, SL (CHỈ LONG, không Short)
+        7. **Rủi ro** - Các điều kiện vô hiệu hóa (cả kỹ thuật và cơ bản)
         
         ---
         
