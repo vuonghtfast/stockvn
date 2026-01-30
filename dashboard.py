@@ -307,8 +307,15 @@ def get_money_flow_top():
                 if col in flow_df.columns:
                     flow_df[col] = pd.to_numeric(flow_df[col], errors='coerce')
             
-            # Split by type
-            stocks_df = flow_df[flow_df['type'] == 'stock'].copy()
+            # Split by type - now includes stock_buy, stock_sell, sector_positive, sector_negative
+            buy_stocks = flow_df[flow_df['type'] == 'stock_buy'].copy()
+            sell_stocks = flow_df[flow_df['type'] == 'stock_sell'].copy()
+            # For backwards compatibility, combine buy and sell as "stocks_df"
+            stocks_df = pd.concat([buy_stocks, sell_stocks], ignore_index=True)
+            # Also support old format (type == 'stock')
+            if stocks_df.empty:
+                stocks_df = flow_df[flow_df['type'] == 'stock'].copy()
+            
             positive_sectors = flow_df[flow_df['type'] == 'sector_positive'].copy()
             negative_sectors = flow_df[flow_df['type'] == 'sector_negative'].copy()
             
@@ -933,45 +940,57 @@ if page == "🏠 Dashboard":
             else:
                 st.info("Chưa có dữ liệu ngành bán mạnh")
         
-        # Chart 2: Top 9 stocks with value and volume
+        # Chart 2: Top stocks - BUY and SELL side by side
         if stocks_df is not None and not stocks_df.empty:
-            top9 = stocks_df.head(9)
+            st.markdown("### 📊 Top Cổ Phiếu Theo Dòng Tiền")
             
-            # Create dual-axis chart
-            fig_stocks = go.Figure()
+            # Separate buy and sell
+            buy_stocks = stocks_df[stocks_df['type'] == 'stock_buy'].head(9) if 'type' in stocks_df.columns else stocks_df[stocks_df['net_flow'] > 0].head(9)
+            sell_stocks = stocks_df[stocks_df['type'] == 'stock_sell'].head(9) if 'type' in stocks_df.columns else stocks_df[stocks_df['net_flow'] < 0].head(9)
             
-            # Add net flow bars (primary y-axis)
-            fig_stocks.add_trace(go.Bar(
-                name='Dòng tiền ròng (B)',
-                x=top9['ticker'].tolist(),
-                y=top9['net_flow'].tolist(),
-                marker_color=['#26a69a' if v > 0 else '#ef5350' for v in top9['net_flow'].tolist()],
-                text=[f"{v:.2f}B" for v in top9['net_flow'].tolist()],
-                textposition='outside',
-                yaxis='y'
-            ))
+            col_buy, col_sell = st.columns(2)
             
-            # Add volume line (secondary y-axis)
-            fig_stocks.add_trace(go.Scatter(
-                name='Khối lượng',
-                x=top9['ticker'].tolist(),
-                y=top9['volume'].tolist(),
-                mode='lines+markers',
-                line=dict(color='#ff9800', width=2),
-                marker=dict(size=8),
-                yaxis='y2'
-            ))
+            # Chart 2a: Top BUY stocks
+            with col_buy:
+                if not buy_stocks.empty:
+                    fig_buy = go.Figure()
+                    fig_buy.add_trace(go.Bar(
+                        name='Dòng tiền MUA',
+                        x=buy_stocks['ticker'].tolist(),
+                        y=buy_stocks['net_flow'].tolist(),
+                        marker_color='#26a69a',
+                        text=[f"+{v:.2f}B" for v in buy_stocks['net_flow'].tolist()],
+                        textposition='outside'
+                    ))
+                    fig_buy.update_layout(
+                        title="🟢 Top 9 Cổ Phiếu MUA Mạnh",
+                        xaxis_title="Mã", yaxis_title="Dòng tiền (Tỷ VNĐ)",
+                        height=350, showlegend=False
+                    )
+                    st.plotly_chart(fig_buy, use_container_width=True)
+                else:
+                    st.info("Chưa có dữ liệu mã mua mạnh")
             
-            fig_stocks.update_layout(
-                title="Top 9 Cổ Phiếu Mua Mạnh - Giá Trị & Khối Lượng",
-                xaxis_title="Mã cổ phiếu",
-                yaxis=dict(title="Dòng tiền ròng (Tỷ VNĐ)", side='left'),
-                yaxis2=dict(title="Khối lượng", side='right', overlaying='y'),
-                height=450,
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-                hovermode='x unified'
-            )
-            st.plotly_chart(fig_stocks, use_container_width=True)
+            # Chart 2b: Top SELL stocks
+            with col_sell:
+                if not sell_stocks.empty:
+                    fig_sell = go.Figure()
+                    fig_sell.add_trace(go.Bar(
+                        name='Dòng tiền BÁN',
+                        x=sell_stocks['ticker'].tolist(),
+                        y=[abs(v) for v in sell_stocks['net_flow'].tolist()],
+                        marker_color='#ef5350',
+                        text=[f"-{abs(v):.2f}B" for v in sell_stocks['net_flow'].tolist()],
+                        textposition='outside'
+                    ))
+                    fig_sell.update_layout(
+                        title="🔴 Top 9 Cổ Phiếu BÁN Mạnh",
+                        xaxis_title="Mã", yaxis_title="Dòng tiền (Tỷ VNĐ)",
+                        height=350, showlegend=False
+                    )
+                    st.plotly_chart(fig_sell, use_container_width=True)
+                else:
+                    st.info("Chưa có dữ liệu mã bán mạnh")
         
     else:
         st.warning("Chua co du lieu dong tien. Vui long chay `python money_flow.py` de cap nhat.")
