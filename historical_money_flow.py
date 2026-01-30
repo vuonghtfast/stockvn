@@ -47,13 +47,29 @@ except Exception as e:
     print(f"[X] Failed to connect to Google Sheets: {e}")
     sys.exit(1)
 
-# Get tickers
+# Get tickers from watchlist_flow (only track stocks in watchlist)
 try:
-    tickers_sheet = spreadsheet.worksheet("tickers")
-    tickers = tickers_sheet.col_values(1)[1:]  # Skip header
-    print(f"[i] Tracking {len(tickers)} tickers")
+    wl_sheet = spreadsheet.worksheet("watchlist_flow")
+    wl_data = wl_sheet.get_all_records()
+    if wl_data:
+        wl_df = pd.DataFrame(wl_data)
+        if 'ticker' in wl_df.columns:
+            tickers = wl_df['ticker'].dropna().unique().tolist()
+        else:
+            tickers = []
+    else:
+        tickers = []
+    
+    if not tickers:
+        print("[i] Watchlist trống. Thêm mã vào Danh Sách Theo Dõi để cào lịch sử.")
+        sys.exit(0)
+    
+    print(f"[i] Tracking {len(tickers)} tickers from watchlist_flow")
+except gspread.WorksheetNotFound:
+    print("[X] Sheet watchlist_flow chưa tồn tại. Thêm mã vào Danh Sách Theo Dõi trước.")
+    sys.exit(0)
 except Exception as e:
-    print(f"[X] Failed to read tickers: {e}")
+    print(f"[X] Failed to read watchlist: {e}")
     sys.exit(1)
 
 # Initialize vnstock
@@ -153,7 +169,14 @@ try:
     if existing_data:
         existing_df = pd.DataFrame(existing_data)
         
-        # Xóa dữ liệu trùng ngày
+        # CLEANUP: Xóa dữ liệu của mã KHÔNG còn trong watchlist
+        old_count = len(existing_df)
+        existing_df = existing_df[existing_df['ticker'].isin(tickers)]
+        removed_count = old_count - len(existing_df)
+        if removed_count > 0:
+            print(f"[CLEANUP] Đã xóa {removed_count} records của mã không còn trong watchlist")
+        
+        # Xóa dữ liệu trùng ngày (cho các mã hiện tại)
         existing_df = existing_df[~existing_df['date'].isin(df['date'].unique())]
         
         # Gộp
@@ -207,6 +230,7 @@ except Exception as e:
     print(f"[X] Failed to create summary: {e}")
 
 print("\n[DONE] Historical money flow collection complete!")
-print(f"\n[i] Tip: Bạn có thể xem dữ liệu trong sheets:")
-print(f"   - historical_flow: Dữ liệu chi tiết theo ngày")
-print(f"   - historical_flow_summary: Tổng hợp theo ngành")
+print(f"\n[i] Workflow:")
+print(f"   - Nguồn: watchlist_flow ({len(tickers)} mã)")
+print(f"   - Sheet: historical_flow (dữ liệu chi tiết)")
+print(f"   - Cleanup: Mã xóa khỏi watchlist → dữ liệu bị xóa")

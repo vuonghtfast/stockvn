@@ -709,7 +709,7 @@ def render_watchlist_tab():
             st.caption("Xu hướng dòng tiền của các mã trong danh mục (7 ngày gần nhất)")
             
             try:
-                # Get historical flow data
+                # Get historical flow data from historical_flow sheet (not real-time)
                 creds = get_google_credentials()
                 client = gspread.authorize(creds)
                 spreadsheet_id = os.getenv("SPREADSHEET_ID")
@@ -719,7 +719,8 @@ def render_watchlist_tab():
                     spreadsheet = client.open("stockdata")
                 
                 try:
-                    flow_ws = spreadsheet.worksheet("intraday_flow")
+                    # Use historical_flow for 7-day trend (populated by historical_money_flow.py)
+                    flow_ws = spreadsheet.worksheet("historical_flow")
                     flow_data = flow_ws.get_all_records()
                     flow_df = pd.DataFrame(flow_data)
                     
@@ -729,33 +730,45 @@ def render_watchlist_tab():
                         
                         if wl_tickers and 'ticker' in flow_df.columns:
                             # Filter for watchlist tickers
-                            wl_flow = flow_df[flow_df['ticker'].isin(wl_tickers)]
+                            wl_flow = flow_df[flow_df['ticker'].isin(wl_tickers)].copy()
                             
-                            if not wl_flow.empty and 'timestamp' in wl_flow.columns:
-                                wl_flow['timestamp'] = pd.to_datetime(wl_flow['timestamp'], errors='coerce')
+                            # historical_flow uses 'date' column, not 'timestamp'
+                            if not wl_flow.empty and 'date' in wl_flow.columns:
+                                wl_flow['date'] = pd.to_datetime(wl_flow['date'], errors='coerce')
                                 wl_flow['money_flow_normalized'] = pd.to_numeric(wl_flow['money_flow_normalized'], errors='coerce')
                                 
                                 # Last 7 days
                                 cutoff = datetime.now() - timedelta(days=7)
-                                recent = wl_flow[wl_flow['timestamp'] >= cutoff]
+                                recent = wl_flow[wl_flow['date'] >= cutoff]
                                 
                                 if not recent.empty:
                                     fig = px.line(
                                         recent,
-                                        x='timestamp',
+                                        x='date',
                                         y='money_flow_normalized',
                                         color='ticker',
-                                        title="Xu hướng Dòng Tiền 7 Ngày",
-                                        labels={'money_flow_normalized': 'Dòng Tiền (Tỷ VNĐ)', 'timestamp': 'Thời gian'}
+                                        markers=True,
+                                        title="📈 Xu hướng Dòng Tiền 7 Ngày",
+                                        labels={'money_flow_normalized': 'Dòng Tiền (Tỷ VNĐ)', 'date': 'Ngày'}
                                     )
-                                    fig.update_layout(height=400)
+                                    fig.update_layout(
+                                        height=400,
+                                        hovermode='x unified',
+                                        legend=dict(orientation='h', yanchor='bottom', y=1.02)
+                                    )
                                     st.plotly_chart(fig, use_container_width=True)
                                 else:
-                                    st.info("Chưa có dữ liệu 7 ngày gần đây")
+                                    st.info("📊 Chưa có dữ liệu 7 ngày gần đây. Chạy `python historical_money_flow.py --days 7` để cào.")
                             else:
-                                st.info("Chưa có dữ liệu dòng tiền cho các mã trong danh mục")
+                                st.info("📊 Chưa có dữ liệu dòng tiền cho các mã trong danh mục")
+                        else:
+                            st.info("📊 Thêm mã vào danh mục để xem biểu đồ trend")
+                    else:
+                        st.info("📊 Chưa có dữ liệu lịch sử. Chạy `python historical_money_flow.py --days 7` để cào.")
+                except gspread.WorksheetNotFound:
+                    st.info("📊 Sheet historical_flow chưa tồn tại. Chạy `python historical_money_flow.py --days 7` để tạo.")
                 except Exception as e:
-                    st.info("Chưa có dữ liệu biểu đồ")
+                    st.info(f"Chưa có dữ liệu biểu đồ: {str(e)[:50]}")
             except Exception as e:
                 st.info("Không thể tải dữ liệu biểu đồ")
             
@@ -1123,21 +1136,137 @@ elif page == "📊 Phân Tích":
 elif page == "💰 Báo Cáo Tài Chính":
     st.markdown('<div class="main-header">💰 Báo Cáo Tài Chính</div>', unsafe_allow_html=True)
     
-    # Selection
-    tickers = fetch_ticker_list()
-    col1, col2, col3 = st.columns([2, 1, 1])
-    with col1:
-        fin_symbol = st.selectbox("Nhập mã chứng khoán", options=tickers, key="fin_symbol", index=0 if "VNM" not in tickers else tickers.index("VNM"))
-    with col2:
-        period_type = st.radio("Kỳ báo cáo", ["Quý", "Năm"], horizontal=True)
-    with col3:
-        current_year = datetime.now().year
-        if period_type == "Năm":
-            selected_year = st.selectbox("Năm", options=list(range(current_year, current_year-10, -1)), index=0)
-            selected_quarter = None
-        else:
-            selected_year = st.selectbox("Năm", options=list(range(current_year, current_year-5, -1)), index=0, key="year_q")
-            selected_quarter = st.selectbox("Quý", options=[1, 2, 3, 4], index=0)
+    # Add cache clear button
+    if st.button("🔄 Làm mới dữ liệu", help="Xóa cache để lấy dữ liệu mới nhất"):
+        fetch_financial_sheet.clear()
+        get_spreadsheet.clear()  # Also clear spreadsheet cache
+        st.success("✅ Đã xóa cache!")
+        st.rerun()
+    
+    # Get tickers from scraped income data - with detailed debug
+    try:
+        # Direct access to check spreadsheet
+        spreadsheet = get_spreadsheet()
+        st.info(f"📊 Đang kết nối: **{spreadsheet.title}**")
+        
+        # Try to access income sheet directly
+        try:
+            ws = spreadsheet.worksheet("income")
+            all_data = ws.get_all_records()
+            st.info(f"📋 Sheet 'income': {len(all_data)} bản ghi")
+            
+            if all_data:
+                income_df = pd.DataFrame(all_data)
+                st.info(f"📝 Các cột: {list(income_df.columns)[:8]}")
+                
+                if 'ticker' in income_df.columns:
+                    finance_tickers = sorted(income_df['ticker'].dropna().unique().tolist())
+                    st.success(f"✅ Tìm thấy {len(finance_tickers)} mã: {finance_tickers[:10]}...")
+                    # Clear cache so report display gets fresh data
+                    fetch_financial_sheet.clear()
+                else:
+                    st.warning(f"⚠️ Không có cột 'ticker'. Các cột: {list(income_df.columns)}")
+                    finance_tickers = []
+            else:
+                st.warning("⚠️ Sheet 'income' có 0 bản ghi")
+                finance_tickers = []
+                
+        except gspread.WorksheetNotFound:
+            st.error("❌ Không tìm thấy sheet 'income'")
+            # List available sheets
+            sheets = [ws.title for ws in spreadsheet.worksheets()]
+            st.info(f"📑 Các sheet có sẵn: {sheets}")
+            finance_tickers = []
+            
+    except Exception as e:
+        st.error(f"❌ Lỗi: {str(e)}")
+        import traceback
+        st.code(traceback.format_exc()[:500])
+        finance_tickers = []
+    
+    # Add new ticker section
+    with st.expander("➕ Thêm/Xóa Mã Báo Cáo Tài Chính"):
+        add_col1, add_col2 = st.columns([3, 1])
+        with add_col1:
+            new_fin_ticker = st.text_input("Nhập mã cổ phiếu cần cào BCTC", placeholder="VNM, FPT", key="add_fin_ticker")
+        with add_col2:
+            st.write("")
+            st.write("")
+            if st.button("📋 Cào BCTC", key="btn_scrape_new_fin"):
+                if new_fin_ticker.strip():
+                    with st.spinner(f"Đang cào BCTC {new_fin_ticker}..."):
+                        try:
+                            import subprocess
+                            result = subprocess.run(
+                                [sys.executable, 'finance.py', '--tickers', new_fin_ticker.strip()],
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                text=True, encoding='utf-8', errors='replace',
+                                timeout=300,
+                                cwd=os.path.dirname(os.path.abspath(__file__)) if '__file__' in dir() else '.'
+                            )
+                            if result.returncode == 0:
+                                st.success(f"✅ Đã cào BCTC {new_fin_ticker}")
+                                st.rerun()
+                            else:
+                                st.error(f"❌ Lỗi: {result.stderr[:500] if result.stderr else 'Unknown error'}")
+                        except subprocess.TimeoutExpired:
+                            st.error("⏰ Timeout sau 5 phút")
+                        except Exception as e:
+                            st.error(f"❌ Lỗi: {str(e)}")
+                else:
+                    st.warning("Vui lòng nhập mã")
+        
+        # Delete section
+        if finance_tickers:
+            del_tickers = st.multiselect("🗑️ Chọn mã cần xóa khỏi BCTC", options=finance_tickers, key="del_fin_tickers")
+            if st.button("🗑️ Xóa Dữ Liệu Đã Chọn", key="btn_del_fin"):
+                if del_tickers:
+                    with st.spinner("Đang xóa..."):
+                        try:
+                            creds = get_google_credentials()
+                            client = gspread.authorize(creds)
+                            spreadsheet = client.open("stockdata")
+                            
+                            deleted_count = 0
+                            for sheet_name in ["income", "balance", "cashflow"]:
+                                try:
+                                    ws = spreadsheet.worksheet(sheet_name)
+                                    all_data = ws.get_all_records()
+                                    df = pd.DataFrame(all_data)
+                                    if not df.empty and 'ticker' in df.columns:
+                                        original = len(df)
+                                        df = df[~df['ticker'].isin(del_tickers)]
+                                        deleted_count += original - len(df)
+                                        ws.clear()
+                                        ws.update([df.columns.values.tolist()] + df.values.tolist())
+                                except:
+                                    pass
+                            st.success(f"✅ Đã xóa {deleted_count} bản ghi!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Lỗi: {str(e)}")
+    
+    # Show ticker selection from available data
+    if finance_tickers:
+        col1, col2, col3 = st.columns([2, 1, 1])
+        with col1:
+            fin_symbol = st.selectbox("Chọn mã xem báo cáo", options=finance_tickers, key="fin_symbol")
+        with col2:
+            period_type = st.radio("Kỳ báo cáo", ["Quý", "Năm"], horizontal=True)
+        with col3:
+            current_year = datetime.now().year
+            if period_type == "Năm":
+                selected_year = st.selectbox("Năm", options=list(range(current_year, current_year-10, -1)), index=0)
+                selected_quarter = None
+            else:
+                selected_year = st.selectbox("Năm", options=list(range(current_year, current_year-5, -1)), index=0, key="year_q")
+                selected_quarter = st.selectbox("Quý", options=[1, 2, 3, 4], index=0)
+    else:
+        st.info("📝 Chưa có dữ liệu BCTC. Vui lòng nhập mã và bấm 'Cào BCTC' ở trên.")
+        fin_symbol = None
+        period_type = "Quý"
+        selected_year = datetime.now().year
+        selected_quarter = 1
 
     if fin_symbol:
         with st.spinner(f"Đang tải báo cáo tài chính {fin_symbol}..."):

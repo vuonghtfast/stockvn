@@ -60,7 +60,7 @@ def get_stock_financial_metrics(ticker):
     try:
         creds = get_google_credentials()
         client = gspread.authorize(creds)
-        spreadsheet = client.open("Stock_Data_Storage")
+        spreadsheet = client.open("stockdata")
         
         metrics = {'ticker': ticker, 'has_data': False}
         
@@ -164,9 +164,9 @@ def render_money_flow_tab():
             index=1,  # Default: 1 năm
             key="hist_time_period"
         )
-        # Convert to days
-        time_map = {"6 tháng": 180, "1 năm": 365, "2 năm": 730, "3 năm": 1095, "4 năm": 1460, "5 năm": 1825}
-        hist_days = time_map.get(hist_time_period, 365)
+        # Convert to price.py --period format
+        period_map = {"6 tháng": "6m", "1 năm": "1y", "2 năm": "2y", "3 năm": "3y", "4 năm": "4y", "5 năm": "5y"}
+        hist_period = period_map.get(hist_time_period, "1y")
     
     with hist_col2:
         all_sectors = get_all_sectors()
@@ -189,7 +189,7 @@ def render_money_flow_tab():
         with st.spinner(f"🔄 Đang cào dữ liệu {hist_time_period}..."):
             try:
                 # Build command with filters
-                cmd = [sys.executable, 'price.py', '--days', str(hist_days)]
+                cmd = [sys.executable, 'price.py', '--period', hist_period]
                 
                 # Add ticker filter
                 tickers_to_scrape = []
@@ -342,7 +342,8 @@ def render_money_flow_tab():
                                     result = subprocess.run(
                                         [sys.executable, 'finance.py', '--tickers', ticker],
                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                        text=True, timeout=120,
+                                        text=True, encoding='utf-8', errors='replace',
+                                        timeout=180,
                                         cwd=os.path.dirname(os.path.abspath(__file__))
                                     )
                                     if result.returncode == 0:
@@ -350,7 +351,9 @@ def render_money_flow_tab():
                                         get_stock_financial_metrics.clear()  # Clear cache
                                         st.rerun()
                                     else:
-                                        st.error(f"❌ Lỗi cào BCTC")
+                                        st.error(f"❌ Lỗi: {result.stderr[:300] if result.stderr else 'Unknown'}")
+                                except subprocess.TimeoutExpired:
+                                    st.error("⏰ Timeout sau 3 phút")
                                 except Exception as e:
                                     st.error(f"❌ Lỗi: {str(e)}")
                 

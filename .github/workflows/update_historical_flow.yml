@@ -1,0 +1,30 @@
+name: Update Historical Money Flow
+
+on:
+  schedule:
+    # Run after market close to save daily flow data
+    # 16:00 ICT = 09:00 UTC (Monday-Friday)
+    - cron: '0 9 * * 1-5'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  update-historical:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      
+      - name: Run historical money flow
+        run: python historical_money_flow.py --days 1
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          VNSTOCK_API_KEY: ${{ secrets.VNSTOCK_API_KEY }}
