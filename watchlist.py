@@ -21,8 +21,17 @@ def get_spreadsheet():
         spreadsheet_id = os.getenv("SPREADSHEET_ID")
         if spreadsheet_id:
             return client.open_by_key(spreadsheet_id)
-        else:
-            return client.open("stockdata")
+        
+        # Try multiple names
+        names_to_try = ["stockdata", "Stock_Data_Storage"]
+        for name in names_to_try:
+            try:
+                return client.open(name)
+            except:
+                continue
+        
+        print(f"[X] Could not find spreadsheet with names: {names_to_try}")
+        return None
     except Exception as e:
         print(f"[X] Failed to connect to Google Sheets: {e}")
         return None

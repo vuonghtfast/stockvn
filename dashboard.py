@@ -2148,8 +2148,8 @@ elif page == "🌐 Khuyến Nghị":
             flow_watchlist = get_watchlist('flow')
             if not flow_watchlist.empty and 'ticker' in flow_watchlist.columns:
                 compare_watchlist = flow_watchlist['ticker'].tolist()
-        except:
-            pass
+        except Exception as e:
+            st.error(f"Lỗi đọc watchlist: {str(e)[:100]}")
         
         if compare_watchlist:
             # Multiselect for tickers
