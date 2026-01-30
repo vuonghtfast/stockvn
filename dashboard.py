@@ -2223,37 +2223,68 @@ CHỈ phân tích LONG (MUA), KHÔNG đề cập SHORT."""
                         def fetch_stock_data(ticker):
                             """Fetch data for a single stock with retry and fallback source"""
                             import time
-                            from vnstock import Vnstock
                             from technical_analysis import TechnicalAnalyzer, fetch_fundamental_data
                             
-                            sources = ['VCI', 'TCBS']  # Try VCI first, then TCBS
                             df = None
                             
-                            for source in sources:
-                                for attempt in range(2):  # 2 attempts per source
-                                    try:
-                                        stock = Vnstock().stock(symbol=ticker, source=source)
-                                        end_date = datetime.now()
-                                        start_date = end_date - timedelta(days=450)
-                                        
-                                        df = stock.quote.history(
-                                            start=start_date.strftime("%Y-%m-%d"),
-                                            end=end_date.strftime("%Y-%m-%d"),
-                                            interval='1D'
-                                        )
-                                        
-                                        if df is not None and not df.empty:
-                                            break  # Success
-                                        
-                                    except Exception as e:
-                                        if "403" in str(e) or "Forbidden" in str(e):
-                                            time.sleep(1)  # Wait before retry
-                                            continue
-                                        # Other errors, try next source
-                                        break
+                            # Method 1: Try vnstock API
+                            try:
+                                from vnstock import Vnstock
+                                sources = ['VCI', 'TCBS']
                                 
-                                if df is not None and not df.empty:
-                                    break  # Got data, exit source loop
+                                for source in sources:
+                                    for attempt in range(2):
+                                        try:
+                                            stock = Vnstock().stock(symbol=ticker, source=source)
+                                            end_date = datetime.now()
+                                            start_date = end_date - timedelta(days=450)
+                                            
+                                            df = stock.quote.history(
+                                                start=start_date.strftime("%Y-%m-%d"),
+                                                end=end_date.strftime("%Y-%m-%d"),
+                                                interval='1D'
+                                            )
+                                            
+                                            if df is not None and not df.empty:
+                                                break
+                                        except Exception as e:
+                                            if "403" in str(e) or "Forbidden" in str(e):
+                                                time.sleep(0.5)
+                                                continue
+                                            break
+                                    
+                                    if df is not None and not df.empty:
+                                        break
+                            except:
+                                pass
+                            
+                            # Method 2: Fallback to Google Sheets price data
+                            if df is None or df.empty:
+                                try:
+                                    import gspread
+                                    from config import get_google_credentials
+                                    
+                                    creds = get_google_credentials()
+                                    client = gspread.authorize(creds)
+                                    
+                                    spreadsheet_id = os.getenv("SPREADSHEET_ID")
+                                    if spreadsheet_id:
+                                        spreadsheet = client.open_by_key(spreadsheet_id)
+                                    else:
+                                        spreadsheet = client.open("stockdata")
+                                    
+                                    price_ws = spreadsheet.worksheet("price")
+                                    all_data = price_ws.get_all_records()
+                                    price_df = pd.DataFrame(all_data)
+                                    
+                                    if not price_df.empty and 'ticker' in price_df.columns:
+                                        ticker_data = price_df[price_df['ticker'] == ticker].copy()
+                                        if not ticker_data.empty and len(ticker_data) >= 200:
+                                            # Rename columns to expected format
+                                            ticker_data.columns = ticker_data.columns.str.lower()
+                                            df = ticker_data
+                                except Exception as e:
+                                    pass
                             
                             if df is None or df.empty:
                                 return None, ticker, "Không lấy được dữ liệu"
