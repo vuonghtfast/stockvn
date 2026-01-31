@@ -3428,23 +3428,6 @@ AI_ANALYSIS_DAYS=400
             except Exception as e:
                 st.error("❌ Lỗi: ")
                 import traceback
-    # Quick actions
-    st.markdown("---")
-    st.markdown("**⚡ Quick Actions**")
-    
-    quick_col1, quick_col2, quick_col3 = st.columns(3)
-    
-    with quick_col1:
-        if st.button("📊 Lấy 5 năm cho Backtest", use_container_width=True):
-            st.info("Chạy: `python price.py --period 5y --interval 1D --mode historical`")
-    
-    with quick_col2:
-        if st.button("⚡ Realtime 5 phút", use_container_width=True):
-            st.info("Chạy: `python price.py --period 1d --interval 5m --mode realtime`")
-    
-    with quick_col3:
-        if st.button("🔄 Update hàng ngày", use_container_width=True):
-            st.info("Chạy: `python price.py --period 1w --interval 1D --mode update`")
     
     # ===== Delete Price Data =====
     st.markdown("---")
