@@ -19,9 +19,9 @@ parser.add_argument('--period', type=str, default='5y',
                     help='Khoảng thời gian: 1d, 1w, 1m, 3m, 6m, 1y, 2y, 5y (default: 5y)')
 parser.add_argument('--interval', type=str, default='1D',
                     help='Interval: 1m, 3m, 5m, 15m, 30m, 1H, 1D (default: 1D)')
-parser.add_argument('--mode', type=str, default='historical',
+parser.add_argument('--mode', type=str, default='update',
                     choices=['historical', 'realtime', 'update'],
-                    help='Mode: historical (full history), realtime (intraday), update (latest only)')
+                    help='Mode: historical (full history), realtime (intraday), update (latest only, default)')
 parser.add_argument('--tickers', type=str, default=None,
                     help='Specific tickers (comma-separated), e.g., VNM,HPG,FPT')
 args = parser.parse_args()

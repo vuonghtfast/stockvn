@@ -3289,8 +3289,8 @@ AI_ANALYSIS_DAYS=400
         mode = st.selectbox(
             "Mode",
             options=['historical', 'realtime', 'update'],
-            index=0,
-            help="historical: Ghi đè toàn bộ | realtime: Intraday | update: Append mới",
+            index=2,  # Default: update (an toàn, không xóa data cũ)
+            help="historical: Ghi đè toàn bộ | realtime: Intraday | update: Append mới (mặc định)",
             label_visibility="collapsed"
         )
         
