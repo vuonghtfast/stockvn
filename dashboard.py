@@ -72,17 +72,24 @@ def fetch_stock_history_with_fallback(ticker, start_date, end_date, show_status=
     """
     Fetch stock history data with multiple source fallback.
     Priority: SSI -> VCI -> TCBS -> Google Sheets
-    SSI has public API that works better on cloud servers.
-    This helps avoid 403 Forbidden errors on cloud servers.
+    Supports PROXY_URL environment variable for cloud deployment.
     """
     import time as time_module
     from vnstock import Vnstock
+    import requests
     
     df = None
-    # SSI first (public API, no auth needed), then VCI, then TCBS (being deprecated)
-    sources = ['SSI', 'VCI', 'TCBS']
     
-    # Method 1: Try vnstock API with multiple sources
+    # Check if proxy is configured (for cloud deployment)
+    proxy_url = os.getenv('PROXY_URL')
+    if proxy_url:
+        proxies = {'http': proxy_url, 'https': proxy_url}
+        # Set proxy for requests library (vnstock uses requests)
+        os.environ['HTTP_PROXY'] = proxy_url
+        os.environ['HTTPS_PROXY'] = proxy_url
+    
+    # Method 1: Try vnstock API with multiple sources (API data is more accurate)
+    sources = ['SSI', 'VCI', 'TCBS']
     for source in sources:
         for attempt in range(2):  # 2 attempts per source
             try:
@@ -107,31 +114,30 @@ def fetch_stock_history_with_fallback(ticker, start_date, end_date, show_status=
             except Exception as e:
                 error_str = str(e)
                 if "403" in error_str or "Forbidden" in error_str:
-                    time_module.sleep(0.5)  # Brief delay before retry
+                    time_module.sleep(0.3)
                     continue
-                # For other errors, try next source
                 break
     
-    # Method 2: Fallback to Google Sheets price data
-    if df is None or df.empty:
-        try:
-            spreadsheet = get_spreadsheet()
-            price_ws = spreadsheet.worksheet("price")
-            all_data = price_ws.get_all_records()
-            price_df = pd.DataFrame(all_data)
-            
-            if not price_df.empty and 'ticker' in price_df.columns:
-                ticker_data = price_df[price_df['ticker'] == ticker].copy()
-                if not ticker_data.empty:
-                    ticker_data.columns = ticker_data.columns.str.lower()
-                    if 'date' in ticker_data.columns:
-                        ticker_data['date'] = pd.to_datetime(ticker_data['date'])
-                        ticker_data = ticker_data[(ticker_data['date'] >= start_date) & (ticker_data['date'] <= end_date)]
-                        ticker_data = ticker_data.sort_values('date')
-                        ticker_data.set_index('date', inplace=True)
-                    return ticker_data, 'GSheets'
-        except Exception as e:
-            pass
+    # Method 2: Fallback to Google Sheets (when all APIs fail - common on cloud)
+    try:
+        spreadsheet = get_spreadsheet()
+        price_ws = spreadsheet.worksheet("price")
+        all_data = price_ws.get_all_records()
+        price_df = pd.DataFrame(all_data)
+        
+        if not price_df.empty and 'ticker' in price_df.columns:
+            ticker_data = price_df[price_df['ticker'] == ticker].copy()
+            if not ticker_data.empty:
+                ticker_data.columns = ticker_data.columns.str.lower()
+                if 'date' in ticker_data.columns:
+                    ticker_data['date'] = pd.to_datetime(ticker_data['date'])
+                    ticker_data = ticker_data[(ticker_data['date'] >= start_date) & (ticker_data['date'] <= end_date)]
+                    ticker_data = ticker_data.sort_values('date')
+                    ticker_data.set_index('date', inplace=True)
+                    if len(ticker_data) >= 50:
+                        return ticker_data, 'GSheets'
+    except Exception as e:
+        pass
     
     return pd.DataFrame(), None
 
