@@ -71,14 +71,16 @@ def fetch_stock_data(symbol, start_date, end_date):
 def fetch_stock_history_with_fallback(ticker, start_date, end_date, show_status=False):
     """
     Fetch stock history data with multiple source fallback.
-    Priority: VCI -> TCBS -> Google Sheets
+    Priority: SSI -> VCI -> TCBS -> Google Sheets
+    SSI has public API that works better on cloud servers.
     This helps avoid 403 Forbidden errors on cloud servers.
     """
     import time as time_module
     from vnstock import Vnstock
     
     df = None
-    sources = ['VCI', 'TCBS']
+    # SSI first (public API, no auth needed), then VCI, then TCBS (being deprecated)
+    sources = ['SSI', 'VCI', 'TCBS']
     
     # Method 1: Try vnstock API with multiple sources
     for source in sources:
@@ -2288,10 +2290,10 @@ CHỈ phân tích LONG (MUA), KHÔNG đề cập SHORT."""
                             
                             df = None
                             
-                            # Method 1: Try vnstock API
+                            # Method 1: Try vnstock API (SSI first for better cloud support)
                             try:
                                 from vnstock import Vnstock
-                                sources = ['VCI', 'TCBS']
+                                sources = ['SSI', 'VCI', 'TCBS']
                                 
                                 for source in sources:
                                     for attempt in range(2):
