@@ -137,14 +137,26 @@ for idx, ticker in enumerate(tickers, 1):
         status_msg = f"[{idx}/{len(tickers)}] {ticker}..."
         print(status_msg, end=" ", flush=True)
         
-        # Use VCI provider instead of deprecated TCBS
-        df = vs.stock(symbol=ticker, source='VCI').quote.history(
-            start=start_date,
-            end=end_date,
-            interval=args.interval
-        )
+        # Try multiple sources with fallback (SSI -> VCI -> TCBS)
+        df = None
+        sources_to_try = ['SSI', 'VCI', 'TCBS']
         
-        if not df.empty:
+        for source in sources_to_try:
+            try:
+                df = vs.stock(symbol=ticker, source=source).quote.history(
+                    start=start_date,
+                    end=end_date,
+                    interval=args.interval
+                )
+                if df is not None and not df.empty:
+                    break  # Success, stop trying other sources
+            except Exception as source_error:
+                if "403" in str(source_error) or "Forbidden" in str(source_error):
+                    continue  # Try next source
+                # For other errors, still try next source
+                continue
+        
+        if df is not None and not df.empty:
             # Add ticker column
             df['ticker'] = ticker
             
@@ -155,7 +167,7 @@ for idx, ticker in enumerate(tickers, 1):
             all_data.append(df)
             print(f"OK {len(df)} records")
         else:
-            print("No data")
+            print("No data (all sources failed)")
     
     except Exception as e:
         print(f"Error: {str(e)}")
