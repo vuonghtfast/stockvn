@@ -3535,97 +3535,203 @@ AI_ANALYSIS_DAYS=400
     st.subheader("📋 Cào Báo Cáo Tài Chính")
     st.info("💡 Cào dữ liệu báo cáo tài chính (Income, Balance, Cashflow) từ vnstock")
     
-    # Filter options - Row 1
-    fin_filter_col1, fin_filter_col2, fin_filter_col3 = st.columns(3)
+    # Get watchlist_flow tickers
+    fin_watchlist_tickers = []
+    try:
+        watchlist_df = get_watchlist('flow')
+        if not watchlist_df.empty and 'ticker' in watchlist_df.columns:
+            fin_watchlist_tickers = watchlist_df['ticker'].tolist()
+    except:
+        pass
     
-    with fin_filter_col1:
+    # Row 1: Period, Years, Mode
+    fin_col1, fin_col2, fin_col3 = st.columns(3)
+    
+    with fin_col1:
         fin_period = st.selectbox(
             "📅 Loại báo cáo",
-            options=["quarter", "annual"],
-            format_func=lambda x: "Theo Quý" if x == "quarter" else "Theo Năm",
+            options=["annual", "quarter"],
+            format_func=lambda x: "Theo Năm" if x == "annual" else "Theo Quý",
+            index=0,  # Default: annual
             key="fin_period"
         )
     
-    with fin_filter_col2:
+    with fin_col2:
         fin_years = st.selectbox(
             "📆 Số năm cần cào",
-            options=[1, 2, 3, 4, 5],
-            index=2,  # Default 3 years
-            help="Số năm dữ liệu cần cào (1-5 năm)",
+            options=[1, 2, 3, 5, 10],
+            index=3,  # Default 5 years
+            help="Số năm dữ liệu cần cào",
             key="fin_years"
         )
     
-    with fin_filter_col3:
-        fin_tickers_input = st.text_input(
-            "🔍 Mã cổ phiếu (để trống = tất cả)",
-            placeholder="VNM, FPT, VCB",
-            help="Nhập các mã cách nhau bởi dấu phẩy. Để trống để cào toàn bộ danh sách.",
-            key="fin_tickers"
+    with fin_col3:
+        fin_mode = st.selectbox(
+            "⚙️ Mode",
+            options=['update', 'historical'],
+            format_func=lambda x: "➕ Append (giữ data cũ)" if x == "update" else "🔄 Ghi đè toàn bộ",
+            index=0,  # Default: update
+            help="update: giữ data cũ | historical: xóa hết, ghi mới",
+            key="fin_mode"
         )
     
-    # Sector filter - Row 2
-    all_sectors = get_all_sectors()
-    fin_selected_sectors = st.multiselect(
-        "🏭 Lọc theo ngành (bỏ trống = tất cả ngành)",
-        options=all_sectors,
-        help="Chọn các ngành muốn cào. Bỏ trống để cào tất cả ngành.",
-        key="fin_sectors"
-    )
+    # Row 2: Ticker selection
+    st.markdown("**Chọn Mã Chứng Khoán**")
+    fin_ticker_col1, fin_ticker_col2 = st.columns([3, 1])
     
-    # Action buttons
-    fin_col1, fin_col2 = st.columns(2)
+    with fin_ticker_col1:
+        fin_ticker_mode = st.radio(
+            "Nguồn mã",
+            options=['Từ watchlist_flow', 'Nhập mã khác', 'Tất cả watchlist'],
+            horizontal=True,
+            label_visibility="collapsed",
+            key="fin_ticker_mode"
+        )
     
-    with fin_col1:
-        if st.button("📋 Cào Báo Cáo Tài Chính", use_container_width=True, type="primary"):
-            with st.spinner("Đang cào báo cáo tài chính..."):
-                try:
-                    import subprocess
-                    
-                    # Build command with filters
-                    cmd = [sys.executable, 'finance.py', '--period', fin_period, '--years', str(fin_years)]
-                    
-                    # Add ticker filter
-                    if fin_tickers_input.strip():
-                        cmd.extend(['--tickers', fin_tickers_input.strip()])
-                    
-                    # Add sector filter - get tickers from selected sectors
-                    if fin_selected_sectors and not fin_tickers_input.strip():
-                        from sectors import get_tickers_by_sector
-                        sector_tickers = []
-                        for sector in fin_selected_sectors:
-                            sector_tickers.extend(get_tickers_by_sector(sector))
-                        if sector_tickers:
-                            cmd.extend(['--tickers', ','.join(set(sector_tickers))])
-                    
-                    result = subprocess.run(
-                        cmd,
-                        stdout=subprocess.PIPE, 
-                        stderr=subprocess.PIPE,
-                        text=True,
-                        encoding='utf-8',
-                        errors='replace',
-                        env={**os.environ, 'PYTHONIOENCODING': 'utf-8'},
-                        timeout=1800
-                    )
-                    if result.returncode == 0:
-                        st.success("✅ Hoàn tất cào báo cáo tài chính!")
+    with fin_ticker_col2:
+        if fin_ticker_mode == 'Tất cả watchlist':
+            st.metric("Số mã", len(fin_watchlist_tickers))
+    
+    fin_tickers_arg = None
+    
+    if fin_ticker_mode == 'Từ watchlist_flow':
+        if fin_watchlist_tickers:
+            fin_selected = st.multiselect(
+                "📌 Chọn mã từ watchlist_flow",
+                options=fin_watchlist_tickers,
+                default=fin_watchlist_tickers[:min(5, len(fin_watchlist_tickers))],
+                key="fin_selected_tickers"
+            )
+            if fin_selected:
+                fin_tickers_arg = ','.join(fin_selected)
+                st.success(f"✅ Đã chọn {len(fin_selected)} mã: {', '.join(fin_selected)}")
+        else:
+            st.warning("⚠️ Chưa có mã trong watchlist_flow")
+    
+    elif fin_ticker_mode == 'Nhập mã khác':
+        fin_custom = st.text_input(
+            "✏️ Nhập mã cổ phiếu",
+            placeholder="VNM, FPT, HPG",
+            key="fin_custom_tickers"
+        )
+        if fin_custom:
+            fin_tickers = [t.strip().upper() for t in fin_custom.split(',') if t.strip()]
+            if fin_tickers:
+                fin_tickers_arg = ','.join(fin_tickers)
+                st.success(f"✅ Sẽ cào {len(fin_tickers)} mã: {', '.join(fin_tickers)}")
+    
+    else:  # Tất cả watchlist
+        if fin_watchlist_tickers:
+            fin_tickers_arg = ','.join(fin_watchlist_tickers)
+            st.info(f"ℹ️ Sẽ cào tất cả {len(fin_watchlist_tickers)} mã từ watchlist_flow")
+    
+    # Action button
+    if st.button("📋 Cào Báo Cáo Tài Chính", use_container_width=True, type="primary", key="btn_finance"):
+        with st.spinner("Đang cào báo cáo tài chính..."):
+            try:
+                import subprocess
+                
+                cmd = [sys.executable, 'finance.py', '--period', fin_period, '--years', str(fin_years), '--mode', fin_mode]
+                
+                if fin_tickers_arg:
+                    cmd.extend(['--tickers', fin_tickers_arg])
+                
+                st.info(f"🔧 Command: `{' '.join(cmd)}`")
+                
+                result = subprocess.run(
+                    cmd,
+                    stdout=subprocess.PIPE, 
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    encoding='utf-8',
+                    errors='replace',
+                    timeout=1800
+                )
+                if result.returncode == 0:
+                    st.success("✅ Hoàn tất cào báo cáo tài chính!")
+                    st.balloons()
+                    if result.stdout:
+                        with st.expander("📄 Chi tiết"):
+                            st.code(result.stdout[-3000:])
+                else:
+                    st.error(f"❌ Lỗi (Exit code: {result.returncode})")
+                    if result.stderr:
+                        st.code(result.stderr)
+            except subprocess.TimeoutExpired:
+                st.error("⏰ Timeout (30 phút)")
+            except Exception as e:
+                st.error(f"❌ Lỗi: {str(e)}")
+    
+    st.caption("**Output:** Sheets `income`, `balance`, `cashflow`")
+    
+    # ===== Delete Finance Data =====
+    st.markdown("---")
+    st.subheader("🗑️ Xóa Dữ Liệu Tài Chính")
+    
+    # Get unique tickers from income sheet
+    fin_data_tickers = []
+    try:
+        spreadsheet = get_spreadsheet()
+        income_ws = spreadsheet.worksheet("income")
+        income_data = income_ws.get_all_records()
+        if income_data:
+            income_df = pd.DataFrame(income_data)
+            if 'ticker' in income_df.columns:
+                fin_data_tickers = sorted(income_df['ticker'].unique().tolist())
+    except:
+        pass
+    
+    if fin_data_tickers:
+        st.info(f"📊 Hiện có **{len(fin_data_tickers)}** mã trong sheets tài chính: {', '.join(fin_data_tickers[:10])}{'...' if len(fin_data_tickers) > 10 else ''}")
+        
+        fin_del_col1, fin_del_col2 = st.columns([3, 1])
+        
+        with fin_del_col1:
+            fin_tickers_delete = st.multiselect(
+                "🎯 Chọn mã cần xóa",
+                options=fin_data_tickers,
+                key="fin_delete_tickers"
+            )
+        
+        with fin_del_col2:
+            st.metric("Sẽ xóa", f"{len(fin_tickers_delete)} mã")
+        
+        if fin_tickers_delete:
+            st.warning(f"⚠️ Sẽ xóa dữ liệu của **{len(fin_tickers_delete)}** mã: {', '.join(fin_tickers_delete)}")
+            
+            fin_confirm_delete = st.checkbox("✅ Xác nhận xóa", key="fin_confirm_delete")
+            
+            if st.button("🗑️ Xóa Dữ Liệu Tài Chính", type="primary", disabled=not fin_confirm_delete, use_container_width=True, key="btn_delete_finance"):
+                with st.spinner("Đang xóa..."):
+                    try:
+                        spreadsheet = get_spreadsheet()
+                        deleted_total = 0
+                        
+                        for sheet_name in ['income', 'balance', 'cashflow']:
+                            try:
+                                ws = spreadsheet.worksheet(sheet_name)
+                                all_data = ws.get_all_records()
+                                if all_data:
+                                    df = pd.DataFrame(all_data)
+                                    original = len(df)
+                                    df = df[~df['ticker'].isin(fin_tickers_delete)]
+                                    deleted = original - len(df)
+                                    deleted_total += deleted
+                                    
+                                    ws.clear()
+                                    if not df.empty:
+                                        ws.update([df.columns.values.tolist()] + df.astype(str).values.tolist())
+                                    st.success(f"✅ {sheet_name}: xóa {deleted} records")
+                            except:
+                                pass
+                        
+                        st.success(f"✅ Tổng cộng đã xóa **{deleted_total}** records!")
                         st.balloons()
-                        # Show summary
-                        if result.stdout:
-                            with st.expander("📄 Chi tiết"):
-                                st.code(result.stdout[-2000:])  # Last 2000 chars
-                    else:
-                        st.error(f"❌ Lỗi khi cào báo cáo tài chính (Exit code: {result.returncode})")
-                        if result.stderr:
-                            st.code(result.stderr)
-                except subprocess.TimeoutExpired:
-                     st.error("⏰ Lỗi: Quá thời gian chờ (Timeout 30 phút)")
-                except Exception as e:
-                    st.error(f"❌ Lỗi hệ thống: {str(e)}")
-    
-    with fin_col2:
-        st.markdown("**Output:** Sheets `income`, `balance`, `cashflow`")
-        st.caption("Báo cáo kết quả kinh doanh, bảng cân đối kế toán, lưu chuyển tiền tệ")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Lỗi: {str(e)}")
+    else:
+        st.info("📭 Chưa có dữ liệu tài chính để xóa.")
 
 # Footer
 st.markdown("---")
