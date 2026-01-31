@@ -19,12 +19,13 @@ from cleanup_helper import cleanup_removed_tickers
 
 # ===== Command Line Arguments =====
 parser = argparse.ArgumentParser(description='Financial Report Scraper')
-parser.add_argument('--tickers', type=str, default='', help='Comma-separated tickers (e.g., VNM,FPT,VCB). Empty = all from sheet')
-parser.add_argument('--period', type=str, default='quarter', choices=['quarter', 'annual'], help='Report period: quarter or annual')
-parser.add_argument('--years', type=int, default=3, help='Number of years to fetch (1-5, default: 3)')
+parser.add_argument('--tickers', type=str, default='', help='Comma-separated tickers (e.g., VNM,FPT,VCB). Empty = all from watchlist_flow')
+parser.add_argument('--period', type=str, default='annual', choices=['quarter', 'annual'], help='Report period: quarter or annual (default: annual)')
+parser.add_argument('--years', type=int, default=5, help='Number of years to fetch (1-10, default: 5)')
+parser.add_argument('--mode', type=str, default='update', choices=['update', 'historical'], help='Mode: update (append) or historical (overwrite)')
 args = parser.parse_args()
 
-print(f"[CONFIG] Finance Scraper - Period: {args.period}, Years: {args.years}, Tickers filter: {args.tickers or 'All'}")
+print(f"[CONFIG] Finance Scraper - Period: {args.period}, Years: {args.years}, Mode: {args.mode}, Tickers: {args.tickers or 'watchlist_flow'}")
 
 # Initialize vnstock with API key if available
 api_key = os.getenv("VNSTOCK_API_KEY")
@@ -80,36 +81,58 @@ except Exception as e:
     print(f"[X] Lỗi đọc danh sách mã: {e}")
     sys.exit(1)
 
-# 3. Hàm lấy báo cáo tài chính (CẬP NHẬT API VNSTOCK MỚI)
-def fetch_financials(symbol, period="quarter"):
-    """Lấy báo cáo tài chính từ vnstock API mới"""
+# 3. Hàm lấy báo cáo tài chính (với fallback source)
+def fetch_financials(symbol, period="annual"):
+    """Lấy báo cáo tài chính từ vnstock API với fallback source"""
     data = {}
-    try:
-        # API mới: Vnstock().stock(symbol, source).finance
-        stock = Vnstock().stock(symbol=symbol, source="VCI")
-        finance = stock.finance
-        
-        # Lấy từng loại báo cáo
+    sources = ['VCI', 'SSI', 'TCBS']
+    
+    for source in sources:
         try:
-            data["income"] = finance.income_statement(period=period)
-        except Exception as e:
-            print(f"  [!] Income statement {symbol}: {e}")
+            stock = Vnstock().stock(symbol=symbol, source=source)
+            finance = stock.finance
             
-        try:
-            data["balance"] = finance.balance_sheet(period=period)
-        except Exception as e:
-            print(f"  [!] Balance sheet {symbol}: {e}")
-        
-        try:
-            data["cashflow"] = finance.cash_flow(period=period)
-        except Exception as e:
-            print(f"  [!] Cash flow {symbol}: {e}")
+            # Lấy từng loại báo cáo
+            try:
+                df = finance.income_statement(period=period)
+                if df is not None and not df.empty:
+                    data["income"] = df
+                    print(f"  [OK] Income ({source}): {len(df)} rows")
+            except Exception as e:
+                if "403" not in str(e):
+                    print(f"  [!] Income {symbol} ({source}): {e}")
+                
+            try:
+                df = finance.balance_sheet(period=period)
+                if df is not None and not df.empty:
+                    data["balance"] = df
+                    print(f"  [OK] Balance ({source}): {len(df)} rows")
+            except Exception as e:
+                if "403" not in str(e):
+                    print(f"  [!] Balance {symbol} ({source}): {e}")
             
-        return data
-
-    except Exception as e:
-        print(f"[X] Lỗi khi lấy báo cáo {symbol} | {period}: {e}")
-        return {}
+            try:
+                df = finance.cash_flow(period=period)
+                if df is not None and not df.empty:
+                    data["cashflow"] = df
+                    print(f"  [OK] Cashflow ({source}): {len(df)} rows")
+            except Exception as e:
+                if "403" not in str(e):
+                    print(f"  [!] Cashflow {symbol} ({source}): {e}")
+            
+            # Nếu đã có ít nhất 1 báo cáo, return
+            if data:
+                return data
+                
+        except Exception as e:
+            if "403" in str(e) or "Forbidden" in str(e):
+                time.sleep(0.5)
+                continue
+            print(f"[!] Source {source} failed for {symbol}: {e}")
+            continue
+    
+    print(f"[X] Không lấy được báo cáo {symbol} từ tất cả sources")
+    return {}
 
 # 4. Ghi dữ liệu vào Google Sheets (CẬP NHẬT: MERGE DỮ LIỆU)
 def get_existing_data(sheet_name):
@@ -126,16 +149,21 @@ def get_existing_data(sheet_name):
         return pd.DataFrame()
     return pd.DataFrame()
 
-def write_to_sheet(sheet_name, new_df):
-    """Ghi DataFrame vào Google Sheet, merge với dữ liệu cũ."""
+def write_to_sheet(sheet_name, new_df, mode='update'):
+    """Ghi DataFrame vào Google Sheet. Mode: 'update' (merge) hoặc 'historical' (overwrite)."""
     try:
         try:
             ws = spreadsheet.worksheet(sheet_name)
         except gspread.WorksheetNotFound:
             ws = spreadsheet.add_worksheet(title=sheet_name, rows="2000", cols="20")
             
-        # 1. Đọc dữ liệu cũ
-        old_df = get_existing_data(sheet_name)
+        # Mode historical: Xóa hết, ghi mới
+        if mode == 'historical':
+            print(f"[MODE] OVERWRITE - Replacing all data in {sheet_name}")
+            old_df = pd.DataFrame()
+        else:
+            # Mode update: Đọc dữ liệu cũ và merge
+            old_df = get_existing_data(sheet_name)
         
         # 2. Merge dữ liệu
         if not old_df.empty:
@@ -350,7 +378,7 @@ if __name__ == "__main__":
         if df_list:
             final_df = pd.concat(df_list, ignore_index=True)
             final_df.columns = final_df.columns.str.lower().str.replace(' ', '_')
-            write_to_sheet(rtype, final_df) 
+            write_to_sheet(rtype, final_df, mode=args.mode) 
         else:
             print(f"[!] Không có dữ liệu mới để ghi cho báo cáo: {rtype}")
             
