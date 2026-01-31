@@ -93,9 +93,15 @@ else:
 
 print(f"[OK] Connected to Google Sheets: {spreadsheet.title}")
 
-# Get tickers
-tickers_sheet = spreadsheet.worksheet("tickers")
-all_tickers = tickers_sheet.col_values(1)[1:]  # Skip header
+# Get tickers from watchlist_flow sheet (centralized ticker management)
+try:
+    watchlist_sheet = spreadsheet.worksheet("watchlist_flow")
+    all_tickers = watchlist_sheet.col_values(1)[1:]  # Skip header (column 'ticker')
+    all_tickers = [t.strip().upper() for t in all_tickers if t.strip()]
+except:
+    # Fallback to tickers sheet if watchlist_flow doesn't exist
+    tickers_sheet = spreadsheet.worksheet("tickers")
+    all_tickers = tickers_sheet.col_values(1)[1:]
 
 # Filter tickers if specified
 if args.tickers:
@@ -103,7 +109,7 @@ if args.tickers:
     print(f"[i] Using tickers from command line: {tickers}")
 else:
     tickers = all_tickers
-    print(f"[i] Using all tickers from sheet: {len(tickers)} tickers")
+    print(f"[i] Using tickers from watchlist_flow: {len(tickers)} tickers")
 
 # Get or create price sheet
 try:

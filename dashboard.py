@@ -71,54 +71,16 @@ def fetch_stock_data(symbol, start_date, end_date):
 def fetch_stock_history_with_fallback(ticker, start_date, end_date, show_status=False):
     """
     Fetch stock history data with multiple source fallback.
-    Priority: SSI -> VCI -> TCBS -> Google Sheets
-    Supports PROXY_URL environment variable for cloud deployment.
+    Priority: GSheets (cloud-reliable) -> SSI -> VCI -> TCBS
+    Returns: (DataFrame, source_name, status_message)
     """
     import time as time_module
     from vnstock import Vnstock
-    import requests
     
     df = None
+    min_rows_required = 50  # Minimum rows for technical analysis
     
-    # Check if proxy is configured (for cloud deployment)
-    proxy_url = os.getenv('PROXY_URL')
-    if proxy_url:
-        proxies = {'http': proxy_url, 'https': proxy_url}
-        # Set proxy for requests library (vnstock uses requests)
-        os.environ['HTTP_PROXY'] = proxy_url
-        os.environ['HTTPS_PROXY'] = proxy_url
-    
-    # Method 1: Try vnstock API with multiple sources (API data is more accurate)
-    sources = ['SSI', 'VCI', 'TCBS']
-    for source in sources:
-        for attempt in range(2):  # 2 attempts per source
-            try:
-                if show_status:
-                    st.text(f"Đang thử {source} (lần {attempt+1})...")
-                
-                stock = Vnstock().stock(symbol=ticker, source=source)
-                df = stock.quote.history(
-                    start=start_date,
-                    end=end_date,
-                    interval='1D'
-                )
-                
-                if df is not None and not df.empty:
-                    # Success! Standardize columns
-                    df.columns = df.columns.str.lower()
-                    if 'time' in df.columns:
-                        df = df.rename(columns={'time': 'date'})
-                        df.set_index('date', inplace=True)
-                    return df, source
-                    
-            except Exception as e:
-                error_str = str(e)
-                if "403" in error_str or "Forbidden" in error_str:
-                    time_module.sleep(0.3)
-                    continue
-                break
-    
-    # Method 2: Fallback to Google Sheets (when all APIs fail - common on cloud)
+    # Method 1: Try Google Sheets FIRST (most reliable on cloud)
     try:
         spreadsheet = get_spreadsheet()
         price_ws = spreadsheet.worksheet("price")
@@ -134,12 +96,46 @@ def fetch_stock_history_with_fallback(ticker, start_date, end_date, show_status=
                     ticker_data = ticker_data[(ticker_data['date'] >= start_date) & (ticker_data['date'] <= end_date)]
                     ticker_data = ticker_data.sort_values('date')
                     ticker_data.set_index('date', inplace=True)
-                    if len(ticker_data) >= 50:
-                        return ticker_data, 'GSheets'
+                    
+                    if len(ticker_data) >= min_rows_required:
+                        return ticker_data, 'GSheets', f"✅ {len(ticker_data)} ngày từ GSheets"
+                    else:
+                        # Has some data but not enough
+                        partial_msg = f"⚠️ GSheets chỉ có {len(ticker_data)} ngày (cần {min_rows_required}+)"
     except Exception as e:
-        pass
+        partial_msg = f"GSheets error: {str(e)[:50]}"
     
-    return pd.DataFrame(), None
+    # Method 2: Try vnstock API (works locally, often blocked on cloud)
+    sources = ['SSI', 'VCI', 'TCBS']
+    for source in sources:
+        for attempt in range(2):
+            try:
+                if show_status:
+                    st.text(f"Đang thử API {source}...")
+                
+                stock = Vnstock().stock(symbol=ticker, source=source)
+                df = stock.quote.history(
+                    start=start_date,
+                    end=end_date,
+                    interval='1D'
+                )
+                
+                if df is not None and not df.empty and len(df) >= min_rows_required:
+                    df.columns = df.columns.str.lower()
+                    if 'time' in df.columns:
+                        df = df.rename(columns={'time': 'date'})
+                        df.set_index('date', inplace=True)
+                    return df, source, f"✅ {len(df)} ngày từ API {source}"
+                    
+            except Exception as e:
+                error_str = str(e)
+                if "403" in error_str or "Forbidden" in error_str:
+                    time_module.sleep(0.3)
+                    continue
+                break
+    
+    # All sources failed
+    return pd.DataFrame(), None, f"❌ Không có dữ liệu cho {ticker}. Thêm vào watchlist và chờ GitHub Actions cào."
 
 
 @st.cache_data(ttl=3600)  # Finance data is daily, cache for 1 hour
@@ -1993,21 +1989,24 @@ elif page == "🌐 Khuyến Nghị":
         if analyze_btn and ai_ticker:
             with st.spinner(f"🤖 Đang phân tích {ai_ticker} với {ai_provider.upper()}... (có thể mất 30-60 giây)"):
                 try:
-                    # 1. Fetch data with fallback sources (VCI -> TCBS -> GSheets)
+                    # 1. Fetch data (GSheets first, then API fallback)
                     end_date = datetime.now()
                     start_date = end_date - timedelta(days=ai_days + 50)  # Extra buffer for MA200
                     
-                    df, source_used = fetch_stock_history_with_fallback(
+                    df, source_used, status_msg = fetch_stock_history_with_fallback(
                         ai_ticker,
                         start_date.strftime("%Y-%m-%d"),
                         end_date.strftime("%Y-%m-%d")
                     )
                     
+                    # Show data source status
                     if source_used:
-                        st.caption(f"📡 Nguồn dữ liệu: {source_used}")
+                        st.caption(f"📡 {status_msg}")
+                    else:
+                        st.warning(status_msg)
                     
                     if df is None or df.empty:
-                        st.error(f"❌ Không có dữ liệu cho {ai_ticker}. Tất cả nguồn (VCI, TCBS, GSheets) đều thất bại.")
+                        st.info("💡 Thêm mã vào watchlist và chờ GitHub Actions cào dữ liệu (chạy mỗi ngày).")
                     else:
                         # 2. Calculate technical indicators (columns already standardized by helper)
                         from technical_analysis import TechnicalAnalyzer

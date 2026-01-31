@@ -8,10 +8,10 @@ import gspread
 from typing import List, Tuple
 
 def get_current_tickers(spreadsheet) -> List[str]:
-    """Get current list of tickers from Google Sheets"""
+    """Get current list of tickers from watchlist_flow sheet"""
     try:
-        ws = spreadsheet.worksheet("tickers")
-        tickers = ws.col_values(1)[1:]  # Skip header
+        ws = spreadsheet.worksheet("watchlist_flow")
+        tickers = ws.col_values(1)[1:]  # Skip header (column 'ticker')
         return [t.strip().upper() for t in tickers if t.strip()]
     except Exception as e:
         print(f"Error getting tickers: {e}")
@@ -19,13 +19,13 @@ def get_current_tickers(spreadsheet) -> List[str]:
 
 def add_ticker(spreadsheet, ticker: str) -> Tuple[bool, str]:
     """
-    Add ticker to Google Sheets
+    Add ticker to watchlist_flow sheet
     Returns: (success, message)
     """
     try:
         ticker = ticker.strip().upper()
         
-        # Validate ticker format (3-4 letters)
+        # Validate ticker format (2-4 letters)
         if not ticker or len(ticker) < 2 or len(ticker) > 4:
             return False, "Mã cổ phiếu phải có 2-4 ký tự"
         
@@ -37,18 +37,20 @@ def add_ticker(spreadsheet, ticker: str) -> Tuple[bool, str]:
         if ticker in current_tickers:
             return False, f"Mã {ticker} đã tồn tại trong danh sách"
         
-        # Add to sheet
-        ws = spreadsheet.worksheet("tickers")
-        ws.append_row([ticker])
+        # Add to watchlist_flow sheet
+        ws = spreadsheet.worksheet("watchlist_flow")
+        # Add with empty values for other columns (added_date, notes, etc.)
+        from datetime import datetime
+        ws.append_row([ticker, datetime.now().strftime("%Y-%m-%d"), ""])
         
-        return True, f"✅ Đã thêm {ticker} vào danh sách"
+        return True, f"✅ Đã thêm {ticker} vào danh sách theo dõi"
     
     except Exception as e:
         return False, f"Lỗi: {str(e)}"
 
 def remove_ticker(spreadsheet, ticker: str) -> Tuple[bool, str]:
     """
-    Remove ticker from Google Sheets
+    Remove ticker from watchlist_flow sheet
     Returns: (success, message)
     """
     try:
@@ -64,12 +66,12 @@ def remove_ticker(spreadsheet, ticker: str) -> Tuple[bool, str]:
         if len(current_tickers) <= 1:
             return False, "Không thể xóa mã cuối cùng"
         
-        # Find and remove
-        ws = spreadsheet.worksheet("tickers")
+        # Find and remove from watchlist_flow
+        ws = spreadsheet.worksheet("watchlist_flow")
         cell = ws.find(ticker)
         if cell:
             ws.delete_rows(cell.row)
-            return True, f"✅ Đã xóa {ticker} khỏi danh sách"
+            return True, f"✅ Đã xóa {ticker} khỏi danh sách theo dõi"
         else:
             return False, f"Không tìm thấy {ticker}"
     
