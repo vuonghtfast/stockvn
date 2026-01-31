@@ -3446,6 +3446,74 @@ AI_ANALYSIS_DAYS=400
         if st.button("🔄 Update hàng ngày", use_container_width=True):
             st.info("Chạy: `python price.py --period 1w --interval 1D --mode update`")
     
+    # ===== Delete Price Data =====
+    st.markdown("---")
+    st.subheader("🗑️ Xóa Dữ Liệu Giá")
+    
+    # Get unique tickers from price sheet
+    price_tickers = []
+    try:
+        spreadsheet = get_spreadsheet()
+        price_ws = spreadsheet.worksheet("price")
+        price_data = price_ws.get_all_records()
+        if price_data:
+            price_df = pd.DataFrame(price_data)
+            if 'ticker' in price_df.columns:
+                price_tickers = sorted(price_df['ticker'].unique().tolist())
+    except:
+        pass
+    
+    if price_tickers:
+        st.info(f"📊 Hiện có **{len(price_tickers)}** mã trong sheet price: {', '.join(price_tickers[:10])}{'...' if len(price_tickers) > 10 else ''}")
+        
+        del_col1, del_col2 = st.columns([3, 1])
+        
+        with del_col1:
+            tickers_to_delete = st.multiselect(
+                "🎯 Chọn mã cần xóa",
+                options=price_tickers,
+                help="Chọn 1 hoặc nhiều mã để xóa dữ liệu giá"
+            )
+        
+        with del_col2:
+            st.metric("Sẽ xóa", f"{len(tickers_to_delete)} mã")
+        
+        if tickers_to_delete:
+            st.warning(f"⚠️ Sẽ xóa **{len(tickers_to_delete)}** mã: {', '.join(tickers_to_delete)}")
+            
+            confirm_delete = st.checkbox("✅ Xác nhận xóa dữ liệu", key="confirm_delete_price")
+            
+            if st.button("🗑️ Xóa Dữ Liệu Giá", type="primary", disabled=not confirm_delete, use_container_width=True):
+                with st.spinner("Đang xóa dữ liệu..."):
+                    try:
+                        spreadsheet = get_spreadsheet()
+                        price_ws = spreadsheet.worksheet("price")
+                        all_data = price_ws.get_all_records()
+                        
+                        if all_data:
+                            df = pd.DataFrame(all_data)
+                            original_count = len(df)
+                            
+                            # Filter out selected tickers
+                            df = df[~df['ticker'].isin(tickers_to_delete)]
+                            new_count = len(df)
+                            deleted_count = original_count - new_count
+                            
+                            # Write back
+                            price_ws.clear()
+                            if not df.empty:
+                                price_ws.update([df.columns.values.tolist()] + df.astype(str).values.tolist())
+                            
+                            st.success(f"✅ Đã xóa **{deleted_count}** records của {len(tickers_to_delete)} mã!")
+                            st.balloons()
+                            st.rerun()
+                        else:
+                            st.info("Sheet price đang trống")
+                    except Exception as e:
+                        st.error(f"❌ Lỗi khi xóa: {str(e)}")
+    else:
+        st.info("📭 Sheet price đang trống, không có dữ liệu để xóa.")
+    
     # ===== Money Flow Scraper =====
     st.markdown("---")
     st.subheader("💸 Cào Dữ Liệu Dòng Tiền")
