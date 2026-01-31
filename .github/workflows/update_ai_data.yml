@@ -1,0 +1,40 @@
+name: Update AI Analysis Data
+# Cào dữ liệu lịch sử cho AI phân tích
+# Chỉ cào các mã trong watchlist_flow
+# Dữ liệu được lưu vĩnh viễn (cho đến khi user xóa)
+
+on:
+  schedule:
+    # Chạy 1 lần/ngày lúc 15:30 Vietnam (sau thị trường đóng cửa)
+    # UTC+7 -> UTC: 15:30 = 08:30 UTC
+    - cron: '30 8 * * 1-5'  # Thứ 2-6
+  workflow_dispatch:  # Cho phép chạy thủ công
+
+jobs:
+  update-ai-data:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install vnstock pandas gspread oauth2client python-dotenv requests
+      
+      - name: Scrape price history for watchlist_flow tickers
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+          VNSTOCK_API_KEY: ${{ secrets.VNSTOCK_API_KEY }}
+        run: |
+          echo "🔄 Cào dữ liệu lịch sử cho AI phân tích..."
+          echo "📋 Đọc danh sách mã từ watchlist_flow"
+          python price.py --period 2y --mode update
+          echo "✅ Hoàn tất!"
