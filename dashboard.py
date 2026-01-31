@@ -944,12 +944,12 @@ if page == "🏠 Dashboard":
                 delta_color="normal"
             )
         with col_vn2:
-            st.metric("🕐 Cập nhật", vnindex['timestamp'].split(' ')[1] if ' ' in vnindex['timestamp'] else vnindex['timestamp'])
-        with col_vn3:
             st.metric("📊 Khối lượng", f"{vnindex['volume']:,}")
-        with col_vn4:
+        with col_vn3:
             trend = "📈 Tăng" if vnindex['change'] > 0 else "📉 Giảm" if vnindex['change'] < 0 else "➡️ Đứng"
             st.metric("Xu hướng", trend)
+        with col_vn4:
+            st.metric("🕐 Cập nhật", vnindex['timestamp'].split(' ')[1] if ' ' in vnindex['timestamp'] else vnindex['timestamp'])
         
         st.markdown("---")
     
@@ -970,55 +970,51 @@ if page == "🏠 Dashboard":
         # Chart 1: Sector bar charts - Positive and Negative side by side
         col_chart1, col_chart2 = st.columns(2)
         
-        # Chart 1a: Top 3 Ngành MUA Mạnh
+        # Chart 1a: Top 3 Ngành MUA Mạnh - Pie Chart
         with col_chart1:
             if positive_sectors is not None and not positive_sectors.empty:
-                fig_pos = go.Figure()
                 pos_sectors_top3 = positive_sectors.head(3)
                 
-                # Add net flow bars
-                fig_pos.add_trace(go.Bar(
-                    name='Dòng tiền ròng',
-                    x=[f"🟢 {s}" for s in pos_sectors_top3['sector'].tolist()],
-                    y=pos_sectors_top3['net_flow'].tolist(),
-                    marker_color='#26a69a',
-                    text=[f"+{v:.2f}B" for v in pos_sectors_top3['net_flow'].tolist()],
-                    textposition='outside'
-                ))
+                fig_pos = go.Figure(data=[go.Pie(
+                    labels=pos_sectors_top3['sector'].tolist(),
+                    values=pos_sectors_top3['net_flow'].tolist(),
+                    hole=0.4,
+                    marker_colors=['#26a69a', '#4dd5c8', '#89dfd1'],
+                    textinfo='label+percent',
+                    textposition='outside',
+                    hovertemplate='%{label}: +%{value:.2f}B VNĐ<extra></extra>'
+                )])
                 
                 fig_pos.update_layout(
                     title="📈 Top 3 Ngành MUA Mạnh",
-                    xaxis_title="Ngành",
-                    yaxis_title="Dòng tiền ròng (Tỷ VNĐ)",
                     height=350,
-                    showlegend=False
+                    showlegend=True,
+                    legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5)
                 )
                 st.plotly_chart(fig_pos, use_container_width=True)
             else:
                 st.info("Chưa có dữ liệu ngành mua mạnh")
         
-        # Chart 1b: Top 3 Ngành BÁN Mạnh
+        # Chart 1b: Top 3 Ngành BÁN Mạnh - Pie Chart
         with col_chart2:
             if negative_sectors is not None and not negative_sectors.empty:
-                fig_neg = go.Figure()
                 neg_sectors_top3 = negative_sectors.head(3)
                 
-                # Add net flow bars (negative)
-                fig_neg.add_trace(go.Bar(
-                    name='Dòng tiền ròng',
-                    x=[f"🔴 {s}" for s in neg_sectors_top3['sector'].tolist()],
-                    y=[abs(v) for v in neg_sectors_top3['net_flow'].tolist()],
-                    marker_color='#ef5350',
-                    text=[f"-{abs(v):.2f}B" for v in neg_sectors_top3['net_flow'].tolist()],
-                    textposition='outside'
-                ))
+                fig_neg = go.Figure(data=[go.Pie(
+                    labels=neg_sectors_top3['sector'].tolist(),
+                    values=[abs(v) for v in neg_sectors_top3['net_flow'].tolist()],
+                    hole=0.4,
+                    marker_colors=['#ef5350', '#f59b9a', '#fbe3e3'],
+                    textinfo='label+percent',
+                    textposition='outside',
+                    hovertemplate='%{label}: -%{value:.2f}B VNĐ<extra></extra>'
+                )])
                 
                 fig_neg.update_layout(
                     title="📉 Top 3 Ngành BÁN Mạnh",
-                    xaxis_title="Ngành",
-                    yaxis_title="Dòng tiền ròng (Tỷ VNĐ)",
                     height=350,
-                    showlegend=False
+                    showlegend=True,
+                    legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5)
                 )
                 st.plotly_chart(fig_neg, use_container_width=True)
             else:
@@ -1028,18 +1024,22 @@ if page == "🏠 Dashboard":
         if stocks_df is not None and not stocks_df.empty:
             st.markdown("### 📊 Top Cổ Phiếu Theo Dòng Tiền")
             
-            # Separate buy and sell
-            buy_stocks = stocks_df[stocks_df['type'] == 'stock_buy'].head(9) if 'type' in stocks_df.columns else stocks_df[stocks_df['net_flow'] > 0].head(9)
-            sell_stocks = stocks_df[stocks_df['type'] == 'stock_sell'].head(9) if 'type' in stocks_df.columns else stocks_df[stocks_df['net_flow'] < 0].head(9)
+            # Separate buy and sell - get ALL available, not just 9
+            buy_stocks = stocks_df[stocks_df['type'] == 'stock_buy'] if 'type' in stocks_df.columns else stocks_df[stocks_df['net_flow'] > 0]
+            sell_stocks = stocks_df[stocks_df['type'] == 'stock_sell'] if 'type' in stocks_df.columns else stocks_df[stocks_df['net_flow'] < 0]
+            
+            # Display count
+            st.caption(f"📈 Mua mạnh: {len(buy_stocks)} mã | 📉 Bán mạnh: {len(sell_stocks)} mã")
             
             col_buy, col_sell = st.columns(2)
             
-            # Chart 2a: Top BUY stocks - Pie Chart
+            # Chart 2a: Top BUY stocks - Pie Chart + Table
             with col_buy:
                 if not buy_stocks.empty:
+                    buy_top = buy_stocks.head(9)
                     fig_buy = go.Figure(data=[go.Pie(
-                        labels=buy_stocks['ticker'].tolist(),
-                        values=buy_stocks['net_flow'].tolist(),
+                        labels=buy_top['ticker'].tolist(),
+                        values=buy_top['net_flow'].tolist(),
                         hole=0.4,
                         marker_colors=['#26a69a', '#2bbbad', '#30d0c4', '#4dd5c8', '#6bdacc', '#89dfd1', '#a7e4d5', '#c5e9da', '#e3eede'],
                         textinfo='label+percent',
@@ -1047,21 +1047,29 @@ if page == "🏠 Dashboard":
                         hovertemplate='%{label}: +%{value:.2f}B VNĐ<extra></extra>'
                     )])
                     fig_buy.update_layout(
-                        title="🟢 Top 9 Cổ Phiếu MUA Mạnh",
-                        height=400,
-                        showlegend=True,
-                        legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
+                        title=f"🟢 Top {len(buy_top)} Cổ Phiếu MUA Mạnh",
+                        height=350,
+                        showlegend=False
                     )
                     st.plotly_chart(fig_buy, use_container_width=True)
+                    
+                    # Table with price and volume
+                    table_cols = ['ticker', 'price', 'volume', 'net_flow']
+                    available_cols = [c for c in table_cols if c in buy_top.columns]
+                    if available_cols:
+                        display_df = buy_top[available_cols].copy()
+                        display_df.columns = ['Mã', 'Giá', 'Khối lượng', 'Dòng tiền (B)'] if len(available_cols) == 4 else available_cols
+                        st.dataframe(display_df, use_container_width=True, hide_index=True)
                 else:
                     st.info("Chưa có dữ liệu mã mua mạnh")
             
-            # Chart 2b: Top SELL stocks - Pie Chart
+            # Chart 2b: Top SELL stocks - Pie Chart + Table
             with col_sell:
                 if not sell_stocks.empty:
+                    sell_top = sell_stocks.head(9)
                     fig_sell = go.Figure(data=[go.Pie(
-                        labels=sell_stocks['ticker'].tolist(),
-                        values=[abs(v) for v in sell_stocks['net_flow'].tolist()],
+                        labels=sell_top['ticker'].tolist(),
+                        values=[abs(v) for v in sell_top['net_flow'].tolist()],
                         hole=0.4,
                         marker_colors=['#ef5350', '#f16b69', '#f38381', '#f59b9a', '#f7b3b2', '#f9cbcb', '#fbe3e3', '#fdf5f5', '#ffffff'],
                         textinfo='label+percent',
@@ -1069,12 +1077,19 @@ if page == "🏠 Dashboard":
                         hovertemplate='%{label}: -%{value:.2f}B VNĐ<extra></extra>'
                     )])
                     fig_sell.update_layout(
-                        title="🔴 Top 9 Cổ Phiếu BÁN Mạnh",
-                        height=400,
-                        showlegend=True,
-                        legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
+                        title=f"🔴 Top {len(sell_top)} Cổ Phiếu BÁN Mạnh",
+                        height=350,
+                        showlegend=False
                     )
                     st.plotly_chart(fig_sell, use_container_width=True)
+                    
+                    # Table with price and volume
+                    table_cols = ['ticker', 'price', 'volume', 'net_flow']
+                    available_cols = [c for c in table_cols if c in sell_top.columns]
+                    if available_cols:
+                        display_df = sell_top[available_cols].copy()
+                        display_df.columns = ['Mã', 'Giá', 'Khối lượng', 'Dòng tiền (B)'] if len(available_cols) == 4 else available_cols
+                        st.dataframe(display_df, use_container_width=True, hide_index=True)
                 else:
                     st.info("Chưa có dữ liệu mã bán mạnh")
         
@@ -1953,8 +1968,8 @@ elif page == "🌐 Khuyến Nghị":
                 tp3_pct = st.number_input("TP3 (%)", min_value=1.0, max_value=50.0, 
                     value=float(os.getenv('TP3_PCT', 15)), step=1.0, key="ai_tp3")
                 sl_pct = st.number_input("Stop Loss (%)", min_value=1.0, max_value=20.0, 
-                    value=float(os.getenv('SL_PCT', 6)), step=0.5, key="ai_sl",
-                    help="% cắt lỗ tính từ giá Entry (mặc định 6%)")
+                    value=float(os.getenv('SL_PCT', 5)), step=0.5, key="ai_sl",
+                    help="% cắt lỗ tính từ giá Entry (mặc định 5%)")
             with param_col3:
                 sl_buffer_pct = st.number_input("SL Buffer (%)", min_value=1.0, max_value=10.0, 
                     value=float(os.getenv('SL_BUFFER_PCT', 3)), step=0.5, key="ai_sl_buffer",
