@@ -68,6 +68,72 @@ def fetch_stock_data(symbol, start_date, end_date):
         st.error("❌ Lỗi đọc dữ liệu: ")
         return pd.DataFrame()
 
+def fetch_stock_history_with_fallback(ticker, start_date, end_date, show_status=False):
+    """
+    Fetch stock history data with multiple source fallback.
+    Priority: VCI -> TCBS -> Google Sheets
+    This helps avoid 403 Forbidden errors on cloud servers.
+    """
+    import time as time_module
+    from vnstock import Vnstock
+    
+    df = None
+    sources = ['VCI', 'TCBS']
+    
+    # Method 1: Try vnstock API with multiple sources
+    for source in sources:
+        for attempt in range(2):  # 2 attempts per source
+            try:
+                if show_status:
+                    st.text(f"Đang thử {source} (lần {attempt+1})...")
+                
+                stock = Vnstock().stock(symbol=ticker, source=source)
+                df = stock.quote.history(
+                    start=start_date,
+                    end=end_date,
+                    interval='1D'
+                )
+                
+                if df is not None and not df.empty:
+                    # Success! Standardize columns
+                    df.columns = df.columns.str.lower()
+                    if 'time' in df.columns:
+                        df = df.rename(columns={'time': 'date'})
+                        df.set_index('date', inplace=True)
+                    return df, source
+                    
+            except Exception as e:
+                error_str = str(e)
+                if "403" in error_str or "Forbidden" in error_str:
+                    time_module.sleep(0.5)  # Brief delay before retry
+                    continue
+                # For other errors, try next source
+                break
+    
+    # Method 2: Fallback to Google Sheets price data
+    if df is None or df.empty:
+        try:
+            spreadsheet = get_spreadsheet()
+            price_ws = spreadsheet.worksheet("price")
+            all_data = price_ws.get_all_records()
+            price_df = pd.DataFrame(all_data)
+            
+            if not price_df.empty and 'ticker' in price_df.columns:
+                ticker_data = price_df[price_df['ticker'] == ticker].copy()
+                if not ticker_data.empty:
+                    ticker_data.columns = ticker_data.columns.str.lower()
+                    if 'date' in ticker_data.columns:
+                        ticker_data['date'] = pd.to_datetime(ticker_data['date'])
+                        ticker_data = ticker_data[(ticker_data['date'] >= start_date) & (ticker_data['date'] <= end_date)]
+                        ticker_data = ticker_data.sort_values('date')
+                        ticker_data.set_index('date', inplace=True)
+                    return ticker_data, 'GSheets'
+        except Exception as e:
+            pass
+    
+    return pd.DataFrame(), None
+
+
 @st.cache_data(ttl=3600)  # Finance data is daily, cache for 1 hour
 def fetch_financial_sheet(sheet_name):
     """Fetch financial data from a specific sheet"""
@@ -1919,28 +1985,23 @@ elif page == "🌐 Khuyến Nghị":
         if analyze_btn and ai_ticker:
             with st.spinner(f"🤖 Đang phân tích {ai_ticker} với {ai_provider.upper()}... (có thể mất 30-60 giây)"):
                 try:
-                    # 1. Fetch data DIRECTLY from vnstock API (faster, no GSheets needed)
-                    from vnstock import Vnstock
-                    stock = Vnstock().stock(symbol=ai_ticker, source='VCI')
+                    # 1. Fetch data with fallback sources (VCI -> TCBS -> GSheets)
                     end_date = datetime.now()
                     start_date = end_date - timedelta(days=ai_days + 50)  # Extra buffer for MA200
                     
-                    df = stock.quote.history(
-                        start=start_date.strftime("%Y-%m-%d"),
-                        end=end_date.strftime("%Y-%m-%d"),
-                        interval='1D'
+                    df, source_used = fetch_stock_history_with_fallback(
+                        ai_ticker,
+                        start_date.strftime("%Y-%m-%d"),
+                        end_date.strftime("%Y-%m-%d")
                     )
                     
+                    if source_used:
+                        st.caption(f"📡 Nguồn dữ liệu: {source_used}")
+                    
                     if df is None or df.empty:
-                        st.error(f"❌ Không có dữ liệu cho {ai_ticker} từ vnstock API.")
+                        st.error(f"❌ Không có dữ liệu cho {ai_ticker}. Tất cả nguồn (VCI, TCBS, GSheets) đều thất bại.")
                     else:
-                        # Rename columns to match expected format
-                        df.columns = df.columns.str.lower()
-                        if 'time' in df.columns:
-                            df = df.rename(columns={'time': 'date'})
-                            df.set_index('date', inplace=True)
-                        
-                        # 2. Calculate technical indicators
+                        # 2. Calculate technical indicators (columns already standardized by helper)
                         from technical_analysis import TechnicalAnalyzer
                         analyzer = TechnicalAnalyzer(
                             df, days=ai_days,
