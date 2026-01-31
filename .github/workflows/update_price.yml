@@ -1,10 +1,13 @@
 name: Update Stock Prices
+# Cào dữ liệu giá lịch sử cho các mã trong watchlist_flow
+# Chạy 1 lần/ngày sau khi thị trường đóng cửa
+
 on:
   schedule:
-    # Chạy mỗi 10 phút trong giờ giao dịch (9:00-15:00, Thứ 2-6)
-    # UTC+7 -> UTC: 9:00 = 2:00, 15:00 = 8:00
-    - cron: '*/10 2-8 * * 1-5'
-  workflow_dispatch:  # Cho phép chạy thủ công
+    # Chạy 1 lần/ngày lúc 15:30 Vietnam (sau thị trường đóng cửa)
+    # UTC+7 -> UTC: 15:30 = 08:30 UTC
+    - cron: '30 8 * * 1-5'  # Thứ 2-6
+  workflow_dispatch:  # Cho phép chạy thủ công từ GitHub
 
 jobs:
   update-prices:
@@ -17,28 +20,20 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: '3.11'
       
       - name: Install dependencies
         run: |
           pip install --upgrade pip
           pip install vnstock pandas gspread oauth2client python-dotenv requests
       
-      - name: Run price.py
+      - name: Run price.py (watchlist_flow tickers, 2 years history)
         env:
           GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
           SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
           VNSTOCK_API_KEY: ${{ secrets.VNSTOCK_API_KEY }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          python price.py
-      
-      - name: Check for alerts
-        env:
-          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
-          SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: |
-          python alerts.py
+          echo "🔄 Cào dữ liệu giá cho các mã trong watchlist_flow..."
+          python price.py --period 2y --mode update
+          echo "✅ Hoàn tất!"
+
